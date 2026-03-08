@@ -1,0 +1,45 @@
+# Voice Biomarker Monitoring — Task Checklist
+
+## Project Setup
+- [ ] Initialize Next.js app in `client/` with App Router, TypeScript, Tailwind
+- [ ] Install and configure shadcn/ui with required components
+- [ ] Install Recharts, Framer Motion, react-hook-form, zod
+
+## API & Data Layer
+- [ ] Create `lib/types.ts` — TypeScript interfaces matching Flask API
+- [ ] Create `lib/api.ts` — mock `analyzeVoice()` function
+- [ ] Create `lib/mock-data.ts` — baseline data, trend data for charts
+
+## Recording Screen (`/`)
+- [ ] Random prompt selection (Sustained Vowel, Rainbow Passage, FIMO)
+- [ ] "I am not in a Quiet Place" button → route to dashboard
+- [ ] Microphone button with pulse animation
+- [ ] 3-2-1 countdown with Framer Motion
+- [ ] Karaoke text highlighting effect
+- [ ] Quality check simulation (loading → pass checkmark / fail toast)
+
+## Dashboard Screen (`/dashboard`)
+- [ ] Top bar with "Calibrate" button
+- [ ] Chat-bubble style data presentation
+- [ ] Recharts charts (Pitch, Shimmer, Jitter) with baseline trendline
+- [ ] Metric cards with raw numbers
+- [ ] Recommendation dialog (dismissible)
+
+## Calibration Screen (`/calibrate`)
+- [ ] Bridge2AI consent prompt
+- [ ] "No" → route back to dashboard
+- [ ] Multi-step form (Age/Gender → Language → Voice disorders → Smoking/Respiratory)
+- [ ] Form validation with zod
+- [ ] Submit → route to dashboard
+
+## Design & Polish
+- [ ] Dark mode with indigo/violet palette
+- [ ] Mobile-responsive layout (touch targets ≥48px)
+- [ ] Page transitions with Framer Motion
+- [ ] Inter font from Google Fonts
+
+## Verification
+- [ ] Browser test: Recording flow (prompt → mic → countdown → quality check)
+- [ ] Browser test: Dashboard (charts, bubbles, recommendation)
+- [ ] Browser test: Calibration (consent → form → submit)
+- [ ] Mobile responsiveness check (375px width)

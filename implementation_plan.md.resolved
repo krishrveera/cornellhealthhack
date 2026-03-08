@@ -1,0 +1,114 @@
+# Voice Biomarker Monitoring — Next.js Frontend
+
+Build a mobile-first web app for singers/voice actors to track daily voice metrics (Pitch/F0, Jitter, Shimmer), with mock API calls matching the existing Flask backend at `localhost:5000`.
+
+## Proposed Changes
+
+### Project Scaffolding
+
+#### [NEW] `client/` — Next.js App Router + TypeScript + Tailwind CSS
+
+- Initialize with `npx create-next-app@latest ./client` (App Router, TypeScript, Tailwind, ESLint)
+- Install shadcn/ui and required components: `button`, `card`, `dialog`, `form`, `input`, `select`, `toast`, `alert`, `label`, `checkbox`, `progress`
+- Install additional deps: `recharts`, `framer-motion`, `react-hook-form`, `@hookform/resolvers`, `zod`
+
+---
+
+### API Layer
+
+#### [NEW] `client/src/lib/api.ts`
+
+- Mock function `analyzeVoice(formData)` → simulates `POST /api/v1/analyze` with multipart/form-data
+- Returns mock `AnalysisData` with jitter, shimmer, pitch, and base64 visualization string
+- Includes both pass and fail (quality gate) states with ~80% pass rate
+- Types matching the Flask API response envelope (`status`, `code`, `message`, `data`, `errors`, `meta`)
+
+#### [NEW] `client/src/lib/types.ts`
+
+- TypeScript interfaces for `AnalysisResponse`, `AnalysisData`, `QualityData`, `Features`, `Prediction`, etc.
+
+#### [NEW] `client/src/lib/mock-data.ts`
+
+- Mock baseline data, historical trend data, and daily metrics for Recharts graphs
+
+---
+
+### Screens & Components
+
+#### [NEW] `client/src/app/page.tsx` — Daily Recording Screen (default)
+
+- Random prompt selection (Sustained Vowel, Rainbow Passage, FIMO)
+- "I am not in a Quiet Place" button → routes to `/dashboard`
+- Large microphone button → triggers countdown → simulated recording
+- **Countdown**: 3…2…1… animated with Framer Motion (replaces mic button)
+- **Karaoke text highlight**: progressive word highlighting with Framer Motion
+- **Quality check**: loading spinner → mock pass/fail → green checkmark or error toast
+- Recording captures minimum 10 seconds (3s silence + 7s task)
+
+#### [NEW] `client/src/app/dashboard/page.tsx` — Home / Data Dashboard
+
+- Top bar with "Calibrate" button (links to `/calibrate`)
+- Chat-bubble style data presentation ("Here is your voice data for today!")
+- Recharts line/area charts for Pitch (F0), Shimmer, Jitter with baseline trendline
+- Raw metric numbers in shadcn Cards
+- Recommendation dialog: dismissible alert about elevated shimmer/jitter
+
+#### [NEW] `client/src/app/calibrate/page.tsx` — Calibration / Onboarding
+
+- Bridge2AI consent prompt ("Would you like to be part of the Bridge2AI dataset study?")
+- "No" → route back to dashboard
+- "Yes" → multi-step form (react-hook-form + zod):
+  - Step 1: Age, Gender
+  - Step 2: Primary Language
+  - Step 3: Voice disorder history
+  - Step 4: Smoking history, Respiratory conditions
+- Submit → route back to dashboard
+
+#### [NEW] `client/src/components/` — Shared Components
+
+| Component | Purpose |
+|-----------|---------|
+| `MicrophoneButton.tsx` | Large tappable mic button with pulse animation |
+| `CountdownOverlay.tsx` | 3-2-1 countdown with Framer Motion scale animations |
+| `KaraokeText.tsx` | Word-by-word highlight effect synced to timer |
+| `QualityCheck.tsx` | Loading spinner → pass (checkmark) / fail (toast) |
+| `ChatBubble.tsx` | Text-message-style data presentation |
+| `MetricCard.tsx` | Individual metric display with sparkline |
+| `VoiceChart.tsx` | Recharts wrapper for daily metrics vs baseline |
+| `RecommendationDialog.tsx` | Dismissible health suggestion dialog |
+| `CalibrationForm.tsx` | Multi-step form with progress indicators |
+
+---
+
+### Design & UX
+
+- **Color palette**: Deep indigo/violet primary with teal accents; dark mode by default
+- **Typography**: Inter font via Google Fonts
+- **Mobile-first**: All touch targets ≥48px, mic button prominently centered
+- **Animations**: Framer Motion for page transitions, countdown, karaoke text, and button interactions
+- **Glassmorphism**: Frosted glass cards on gradient backgrounds
+
+---
+
+## Verification Plan
+
+### Browser Testing
+
+1. **Start the dev server**: `cd client && npm run dev`
+2. **Recording Screen** (http://localhost:3000):
+   - Verify random prompt appears
+   - Click "I am not in a Quiet Place" → navigates to `/dashboard`
+   - Click mic → countdown 3…2…1 → karaoke text highlighting → quality check loading → pass/fail
+3. **Dashboard** (http://localhost:3000/dashboard):
+   - Verify charts render with mock data
+   - Verify chat bubble style layout
+   - Verify recommendation dialog appears and is dismissible
+   - Click "Calibrate" → navigates to `/calibrate`
+4. **Calibration** (http://localhost:3000/calibrate):
+   - Click "No" → navigates back to dashboard
+   - Click "Yes" → multi-step form → submit → navigates to dashboard
+5. **Responsive**: Resize to 375px width and verify layout, mic button size, chart readability
+
+### Manual User Verification
+
+- The user should open the app in a mobile browser or Chrome DevTools mobile mode and verify the full flow is intuitive and visually polished
