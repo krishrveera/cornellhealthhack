@@ -3,10 +3,7 @@
  * Interfaces with the Flask backend ML pipeline
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ||
-  (window.location.hostname === 'localhost'
-    ? 'http://localhost:5000/api/v1'
-    : 'http://10.111.4.128:5000/api/v1');
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 // ─── Backend response shapes (match Flask response.py) ──────────────────────
 

@@ -195,9 +195,9 @@ export function RecordingFlow() {
     return () => clearTimeout(timer);
   }, [recordingTime, flowState]);
 
-  // Start actual recording when entering RECORDING state
+  // Start actual recording when entering silence countdown (need to capture the silence)
   useEffect(() => {
-    if (flowState === "RECORDING") {
+    if (flowState === "SILENCE_COUNTDOWN") {
       startRecording();
     }
   }, [flowState]);

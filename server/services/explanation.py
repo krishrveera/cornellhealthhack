@@ -41,7 +41,7 @@ def _call_gemini(prompt: str, max_tokens: int = 1000) -> str:
     try:
         # Use the latest available Gemini flash model with JSON mode
         response = gemini_client.models.generate_content(
-            model='models/gemini-2.5-flash',
+            model='models/gemini-3-flash-preview',
             contents=prompt,
             config={
                 "max_output_tokens": max_tokens,
@@ -115,19 +115,57 @@ def _call_llm(prompt: str, max_tokens: int = 1000) -> str:
     return None
 
 
-def generate_explanation(features: dict, predictions: list, task_type: str) -> dict:
-    """
-    Generate a human-readable explanation of prediction results.
+def _build_hardcoded_explanation(features: dict, predictions: list, task_type: str) -> dict:
+    """Build a data-driven explanation without calling an LLM."""
+    # Extract key voice metrics (try multiple possible key names)
+    def get(keys, default=None):
+        for k in keys:
+            if k in features and features[k] is not None:
+                return features[k]
+        return default
 
-    The LLM receives extracted features, model predictions, and clinical thresholds.
-    It produces plain-language explanations without making diagnoses.
+    jitter = get(['praat.jitter.local_percent', 'praat.jitter.local.mean', 'jitter_local'])
+    shimmer = get(['praat.shimmer.local_percent', 'praat.shimmer.local.mean', 'shimmer_local'])
+    hnr = get(['praat.hnr.mean_db', 'praat.harmonicity.mean', 'hnr_mean'])
+    pitch = get(['praat.f0.mean_hz', 'pitch_mean', 'f0_mean'])
 
-    Supports both Google Gemini and Anthropic Claude.
-    """
-    # Fallback response when no LLM is available
-    fallback = {
-        "summary": "Analysis complete. Your voice features have been extracted.",
-        "details": "Voice analysis results are available. All measurements have been processed using clinical reference standards.",
+    # Build summary from predictions
+    if predictions:
+        elevated = [p for p in predictions if p.get('severity_tier') not in ('low',)]
+        if not elevated:
+            summary = "Your voice analysis looks healthy. All measured parameters fall within normal clinical ranges."
+        else:
+            conditions = [p.get('condition_name', p.get('condition', 'unknown')) for p in elevated]
+            summary = (
+                f"Your voice shows some characteristics worth noting. "
+                f"Slightly elevated indicators were found for: {', '.join(conditions)}. "
+                f"This does not mean you have a condition — many factors can influence these readings."
+            )
+    else:
+        summary = "Your voice analysis is complete. Your voice features have been extracted and compared against clinical reference ranges."
+
+    # Build details from actual feature values
+    details_parts = []
+    if pitch is not None:
+        details_parts.append(f"Your fundamental frequency (pitch) was measured at {pitch:.0f} Hz")
+    if jitter is not None:
+        status = "within normal range (< 1.04%)" if jitter < 1.04 else "slightly elevated (normal < 1.04%)"
+        details_parts.append(f"Jitter (voice stability) is {jitter:.2f}%, {status}")
+    if shimmer is not None:
+        status = "within normal range (< 3.81%)" if shimmer < 3.81 else "slightly elevated (normal < 3.81%)"
+        details_parts.append(f"Shimmer (amplitude variation) is {shimmer:.2f}%, {status}")
+    if hnr is not None:
+        status = "indicating good voice clarity (normal > 20 dB)" if hnr > 20 else "slightly below typical range (normal > 20 dB)"
+        details_parts.append(f"Harmonics-to-noise ratio is {hnr:.1f} dB, {status}")
+
+    if details_parts:
+        details = ". ".join(details_parts) + "."
+    else:
+        details = "Voice features have been extracted and analyzed against clinical reference ranges from published literature."
+
+    return {
+        "summary": summary,
+        "details": details,
         "disclaimer": (
             "This analysis is for informational and screening purposes only. "
             "It is not a medical diagnosis. If you have concerns about your "
@@ -136,40 +174,39 @@ def generate_explanation(features: dict, predictions: list, task_type: str) -> d
         "model_version": "b2ai-voice-v0.1.0"
     }
 
-    prompt = f"""You are a voice health analysis assistant integrated into a screening app. Your job is to explain voice analysis results to the user in clear, non-alarming language.
 
-You are NOT making a diagnosis. An ML model has already produced risk percentages. You are explaining what the numbers mean.
+def generate_explanation(features: dict, predictions: list, task_type: str) -> dict:
+    """
+    Generate a human-readable explanation of prediction results.
 
-VOICE FEATURES EXTRACTED:
-{json.dumps(features, indent=2)}
+    The LLM receives extracted features, model predictions, and clinical thresholds.
+    It produces plain-language explanations without making diagnoses.
 
-MODEL PREDICTIONS:
-{json.dumps(predictions, indent=2)}
+    Supports both Google Gemini and Anthropic Claude.
+    Falls back to hardcoded data-driven explanation when LLM is unavailable.
+    """
+    # Data-driven fallback when no LLM is available
+    fallback = _build_hardcoded_explanation(features, predictions, task_type)
 
-TASK TYPE: {task_type}
+    # Extract only the most important features and predictions to keep prompt short
+    key_features = {k: v for k, v in features.items() if any(x in k.lower() for x in ['jitter', 'shimmer', 'hnr', 'f0', 'pitch'])}
+    top_predictions = predictions[:3] if len(predictions) > 3 else predictions
 
-CLINICAL REFERENCE RANGES (from published literature):
-- Jitter (local): normal < 1.04% (Teixeira et al., 2013)
-- Shimmer (local): normal < 3.81% (Teixeira et al., 2013)
-- HNR: normal > 20 dB (Boersma, 1993)
-- CPP: concerning if < 8 dB (Heman-Ackah et al., 2003)
-- F0 adult male: 85-180 Hz, adult female: 165-255 Hz
+    prompt = f"""Explain voice analysis results in 1-2 sentences max. Be reassuring and concise.
 
-Write your response as JSON with exactly these fields:
+Features: {json.dumps(key_features)}
+Predictions: {json.dumps(top_predictions)}
+
+Return JSON:
 {{
-  "summary": "1-2 sentences. Plain language. If all risks are low, say so reassuringly. If any risk is elevated, mention it factually without alarming.",
-  "details": "One paragraph. Reference specific feature values and whether they fall within normal clinical ranges. Explain which features influenced each prediction and why. Be specific with numbers but accessible in language."
+  "summary": "1-2 sentences only. If low risk, say voice is healthy. If elevated, mention it calmly.",
+  "details": "1 sentence. Mention key numbers like jitter, shimmer, or pitch if relevant."
 }}
 
-Rules:
-- Never say "you have [disease]" or "you are diagnosed with"
-- Use phrases like "your voice shows characteristics consistent with..." or "your measurements fall within the normal range for..."
-- If a feature is affected by AGC or noise reduction, note that it may be less reliable
-- Always be factual and measured in tone
-- Reference the clinical threshold values when comparing features"""
+Rules: Never diagnose. Be brief and reassuring."""
 
     try:
-        text = _call_llm(prompt, max_tokens=2000)
+        text = _call_llm(prompt, max_tokens=500)
 
         if text is None:
             # No LLM available
