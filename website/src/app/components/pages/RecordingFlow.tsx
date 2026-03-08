@@ -323,10 +323,12 @@ export function RecordingFlow() {
       }
 
       const newEntry = {
-        date: new Date().toLocaleDateString('en-US', { weekday: 'short' }),
+        date: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
         pitch,
         shimmer,
         jitter,
+        spectralCentroid,
+        harmonicRatio,
         message,
         isAnomaly,
       };
@@ -367,30 +369,40 @@ export function RecordingFlow() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-neutral-950 text-neutral-50 relative z-10 p-4 sm:p-6 lg:p-8 overflow-hidden">
+    <div className="flex flex-col h-full max-h-screen bg-[#faf8ff] text-slate-900 relative z-10 p-4 sm:p-6 lg:p-8 overflow-hidden">
 
       {/* Header */}
-      <header className="flex justify-between items-center mb-8 sm:mb-12 relative z-20">
+      <header className="flex justify-between items-center mb-4 sm:mb-6 relative z-20 flex-shrink-0">
         <button
-          onClick={() => { stopAudioStream(); navigate("/"); }}
-          className="text-neutral-500 hover:text-white transition-colors"
+          onClick={() => {
+            stopAudioStream();
+            if (flowState === "RESULT" && !isSuccess) {
+              setFlowState("PREPARING");
+              setAudioBlob(null);
+              setAnalysisError(null);
+            } else {
+              navigate("/");
+            }
+          }}
+          className="text-slate-400 hover:text-slate-700 transition-colors"
         >
-          <XCircle className="w-6 h-6" />
+          <XCircle className="w-8 h-8" />
         </button>
-        <span className="text-sm font-medium tracking-wide text-neutral-400 uppercase">
+        <span className="text-sm font-medium tracking-wide text-slate-500 uppercase">
           {flowState === "PREPARING" && "Get Ready"}
           {flowState === "INITIAL_DELAY" && "Get Ready"}
           {flowState === "SILENCE_COUNTDOWN" && "Prepare for Silence"}
           {flowState === "SILENCE_RECORDING" && "Recording Silence"}
           {flowState === "RECORDING" && "Recording"}
           {flowState === "ANALYZING" && "Analyzing"}
-          {flowState === "RESULT" && "Done"}
+          {flowState === "RESULT" && isSuccess && "Done"}
+          {flowState === "RESULT" && !isSuccess && "Error"}
         </span>
-        <div className="w-6" />
+        <div className="w-8" />
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 flex flex-col items-center justify-center relative z-20">
+      <main className="flex-1 flex flex-col items-center justify-center relative z-20 min-h-0 overflow-y-auto">
 
         <AnimatePresence mode="wait">
 
@@ -400,29 +412,29 @@ export function RecordingFlow() {
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
               className="flex flex-col items-center text-center space-y-6 sm:space-y-8 w-full max-w-md mx-auto"
             >
-              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-indigo-500/10 rounded-full flex items-center justify-center border border-indigo-500/20">
-                <Mic className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-400" />
+              <div className="w-20 h-20 sm:w-24 sm:h-24 bg-violet-100 rounded-full flex items-center justify-center border border-violet-200">
+                <Mic className="w-8 h-8 sm:w-10 sm:h-10 text-violet-600" />
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold mb-2">Daily Voice Check</h2>
-                <p className="text-neutral-400 max-w-xs mx-auto text-sm leading-relaxed">
+                <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed">
                   Find a quiet place. First, we'll record 3 seconds of silence to calibrate, then you'll complete a voice task.
                 </p>
               </div>
 
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 w-full text-left flex items-start gap-3 sm:gap-4">
-                <div className="bg-neutral-800 p-2 rounded-xl text-neutral-300 shrink-0">
+              <div className="bg-white border border-violet-100 rounded-2xl p-4 w-full text-left flex items-start gap-3 sm:gap-4 shadow-sm">
+                <div className="bg-violet-100 p-2 rounded-xl text-violet-600 shrink-0">
                   <Play className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-white">Task: {currentPrompt.type}</h3>
-                  <p className="text-xs text-neutral-400 mt-1">{currentPrompt.instruction}</p>
+                  <h3 className="text-sm font-semibold text-slate-900">Task: {currentPrompt.type}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{currentPrompt.instruction}</p>
                 </div>
               </div>
 
               <button
                 onClick={handleStart}
-                className="w-full py-4 mt-4 sm:mt-8 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold text-base sm:text-lg shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] transition-all"
+                className="w-full py-4 mt-4 sm:mt-8 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-bold text-base sm:text-lg shadow-lg shadow-violet-300/30 transition-all"
               >
                 I'm Ready
               </button>
@@ -437,11 +449,11 @@ export function RecordingFlow() {
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex flex-col items-center text-center space-y-6 w-full max-w-md mx-auto"
             >
-              <div className="text-[120px] font-black text-indigo-400 drop-shadow-[0_0_30px_rgba(99,102,241,0.5)] tabular-nums">
+              <div className="text-[120px] font-black text-violet-600 drop-shadow-[0_0_30px_rgba(124,58,237,0.3)] tabular-nums">
                 {countdown}
               </div>
-              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-6 w-full">
-                <p className="text-neutral-300 text-lg font-medium">
+              <div className="bg-violet-50 border border-violet-200 rounded-2xl p-6 w-full">
+                <p className="text-slate-600 text-lg font-medium">
                   Get ready to be quiet for 3 seconds
                 </p>
               </div>
@@ -456,12 +468,12 @@ export function RecordingFlow() {
               exit={{ opacity: 0, y: -20 }}
               className="flex flex-col items-center text-center space-y-6 w-full max-w-md mx-auto"
             >
-              <div className="text-[120px] font-black text-amber-400 drop-shadow-[0_0_30px_rgba(251,191,36,0.5)] tabular-nums">
+              <div className="text-[120px] font-black text-amber-500 drop-shadow-[0_0_30px_rgba(245,158,11,0.3)] tabular-nums">
                 {silenceCountdown}
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 w-full">
-                <p className="text-amber-200 text-xl font-bold mb-2">Please be quiet!</p>
-                <p className="text-neutral-400 text-sm">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 w-full">
+                <p className="text-amber-700 text-xl font-bold mb-2">Please be quiet!</p>
+                <p className="text-slate-500 text-sm">
                   Recording {silenceCountdown} seconds of silence for calibration
                 </p>
               </div>
@@ -476,20 +488,20 @@ export function RecordingFlow() {
               exit={{ opacity: 0, y: -20 }}
               className="flex flex-col items-center text-center space-y-6 w-full max-w-md mx-auto"
             >
-              <div className="w-32 h-32 bg-amber-500/10 rounded-full flex items-center justify-center border-4 border-amber-500/30 relative">
+              <div className="w-32 h-32 bg-amber-50 rounded-full flex items-center justify-center border-4 border-amber-200 relative">
                 <motion.div
                   animate={{ scale: [1, 1.1, 1] }}
                   transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="absolute inset-0 bg-amber-500/20 rounded-full"
+                  className="absolute inset-0 bg-amber-100 rounded-full"
                 />
-                <Mic className="w-12 h-12 text-amber-400" />
+                <Mic className="w-12 h-12 text-amber-500" />
               </div>
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 w-full">
-                <p className="text-amber-200 text-xl font-bold mb-2">🤫 Shh... Stay quiet</p>
-                <p className="text-neutral-400 text-sm">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 w-full">
+                <p className="text-amber-700 text-xl font-bold mb-2">Shh... Stay quiet</p>
+                <p className="text-slate-500 text-sm">
                   Calibrating with silence: {recordingTime}/3 seconds
                 </p>
-                <p className="text-neutral-500 text-xs mt-2">
+                <p className="text-slate-400 text-xs mt-2">
                   Your task will begin after this
                 </p>
               </div>
@@ -506,10 +518,10 @@ export function RecordingFlow() {
             >
               {/* Live Audio Waveform */}
               <div className="w-full max-w-lg">
-                <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 sm:p-5">
+                <div className="bg-white border border-violet-100 rounded-2xl p-4 sm:p-5 shadow-sm">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse" />
-                    <span className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Live Audio</span>
+                    <span className="text-xs text-slate-500 uppercase tracking-wider font-medium">Live Audio</span>
                   </div>
                   <LiveWaveform analyser={analyserRef.current} isActive={flowState === "RECORDING"} />
                 </div>
@@ -517,30 +529,30 @@ export function RecordingFlow() {
 
               {/* Recording Timer */}
               <div className="text-center space-y-2">
-                <div className="text-4xl sm:text-5xl font-black text-white tabular-nums">
+                <div className="text-4xl sm:text-5xl font-black text-slate-900 tabular-nums">
                   {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
-                  <span className="text-2xl text-neutral-500"> / {Math.floor(currentPrompt.recordingDuration / 60)}:{(currentPrompt.recordingDuration % 60).toString().padStart(2, '0')}</span>
+                  <span className="text-2xl text-slate-400"> / {Math.floor(currentPrompt.recordingDuration / 60)}:{(currentPrompt.recordingDuration % 60).toString().padStart(2, '0')}</span>
                 </div>
-                <p className="text-sm text-neutral-400">Recording in progress</p>
-                <div className="w-full bg-neutral-800 rounded-full h-2 mt-3">
+                <p className="text-sm text-slate-500">Recording in progress</p>
+                <div className="w-full bg-violet-100 rounded-full h-2 mt-3">
                   <div
-                    className="bg-indigo-500 h-2 rounded-full transition-all duration-1000"
+                    className="bg-violet-600 h-2 rounded-full transition-all duration-1000"
                     style={{ width: `${(recordingTime / currentPrompt.recordingDuration) * 100}%` }}
                   />
                 </div>
               </div>
 
               {/* Prompt Text */}
-              <div className="w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 shadow-inner max-h-[40vh] overflow-y-auto">
+              <div className="w-full bg-white border border-violet-100 rounded-3xl p-4 sm:p-6 shadow-sm max-h-[40vh] overflow-y-auto">
                 {currentPrompt.type === "Reading" ? (
-                  <div className="text-base sm:text-lg font-medium leading-relaxed text-white text-left">
+                  <div className="text-base sm:text-lg font-medium leading-relaxed text-slate-800 text-left">
                     {currentPrompt.text}
                   </div>
                 ) : (
                   <motion.div
                     animate={{ scale: [1, 1.05, 1] }}
                     transition={{ repeat: Infinity, duration: 2 }}
-                    className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-indigo-400 text-center"
+                    className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-violet-600 text-center"
                   >
                     {currentPrompt.text}
                   </motion.div>
@@ -550,7 +562,7 @@ export function RecordingFlow() {
               {/* Stop Recording Button */}
               <button
                 onClick={handleStopRecording}
-                className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-lg shadow-[0_0_40px_-10px_rgba(244,63,94,0.5)] transition-all flex items-center justify-center gap-3"
+                className="w-full py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-rose-200/40 transition-all flex items-center justify-center gap-3"
               >
                 <Square className="w-5 h-5 fill-current" />
                 Stop Recording
@@ -567,16 +579,16 @@ export function RecordingFlow() {
               className="flex flex-col items-center space-y-6"
             >
               <div className="relative w-32 h-32 flex items-center justify-center">
-                <svg className="w-full h-full animate-spin text-indigo-500/30" viewBox="0 0 100 100">
+                <svg className="w-full h-full animate-spin text-violet-200" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" />
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="283" strokeDashoffset="200" className="text-indigo-500" strokeLinecap="round" />
+                  <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" strokeWidth="8" strokeDasharray="283" strokeDashoffset="200" className="text-violet-600" strokeLinecap="round" />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Activity className="w-8 h-8 text-indigo-400 animate-pulse" />
+                  <Activity className="w-8 h-8 text-violet-600 animate-pulse" />
                 </div>
               </div>
               <h2 className="text-xl font-bold">Extracting Biomarkers</h2>
-              <p className="text-sm text-neutral-400 text-center max-w-xs">
+              <p className="text-sm text-slate-500 text-center max-w-xs">
                 Analyzing pitch, shimmer, jitter, and spectral flux against your baseline...
               </p>
             </motion.div>
@@ -591,30 +603,30 @@ export function RecordingFlow() {
             >
               {isSuccess ? (
                 <>
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-emerald-500/20 rounded-full flex items-center justify-center border-4 border-emerald-500 relative">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-emerald-50 rounded-full flex items-center justify-center border-4 border-emerald-400 relative">
                     <motion.div
                       initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}
                     >
-                      <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-emerald-400" />
+                      <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-emerald-500" />
                     </motion.div>
                   </div>
                   <div className="text-center space-y-2">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-white">Quality Check Passed</h2>
-                    <p className="text-sm sm:text-base text-neutral-400">Audio sample was clear and isolated.</p>
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Quality Check Passed</h2>
+                    <p className="text-sm sm:text-base text-slate-500">Audio sample was clear and isolated.</p>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-rose-500/20 rounded-full flex items-center justify-center border-4 border-rose-500 relative">
+                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-rose-50 rounded-full flex items-center justify-center border-4 border-rose-400 relative">
                     <motion.div
                       initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}
                     >
-                      <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-rose-400" />
+                      <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-rose-500" />
                     </motion.div>
                   </div>
                   <div className="text-center space-y-2">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-white">Analysis Failed</h2>
-                    <p className="text-sm sm:text-base text-neutral-400">
+                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Analysis Failed</h2>
+                    <p className="text-sm sm:text-base text-slate-500">
                       {analysisError || "We couldn't isolate your voice clearly."}
                     </p>
                   </div>
@@ -623,7 +635,7 @@ export function RecordingFlow() {
 
               <button
                 onClick={isSuccess ? finishRecording : handleStart}
-                className={`w-full py-4 mt-4 text-white rounded-2xl font-bold text-base sm:text-lg transition-all ${isSuccess ? "bg-emerald-500 hover:bg-emerald-600 shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)]" : "bg-rose-500 hover:bg-rose-600 shadow-[0_0_30px_-5px_rgba(244,63,94,0.4)]"}`}
+                className={`w-full py-4 mt-4 text-white rounded-2xl font-bold text-base sm:text-lg transition-all ${isSuccess ? "bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-200/40" : "bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-200/40"}`}
               >
                 {isSuccess ? "View Results" : "Try Again"}
               </button>

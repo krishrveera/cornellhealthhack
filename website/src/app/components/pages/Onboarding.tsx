@@ -109,16 +109,16 @@ function CheckboxGroup({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-neutral-300">{label}</p>
+      {label && <p className="text-sm font-medium text-slate-600">{label}</p>}
       <div className="space-y-2">
         {options.map(opt => (
-          <label key={opt} className="flex items-center gap-3 p-3 bg-neutral-900 rounded-xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
+          <label key={opt} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-violet-100 cursor-pointer hover:border-violet-300 transition-colors shadow-sm">
             <Checkbox
               checked={selected.includes(opt)}
               onCheckedChange={() => onChange(toggleFn(selected, opt))}
-              className="border-neutral-600 data-[state=checked]:bg-indigo-500 data-[state=checked]:border-indigo-500"
+              className="border-violet-300 data-[state=checked]:bg-violet-600 data-[state=checked]:border-violet-600"
             />
-            <span className="text-sm text-neutral-200">{opt}</span>
+            <span className="text-sm text-slate-700">{opt}</span>
           </label>
         ))}
       </div>
@@ -139,12 +139,12 @@ function RadioField({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium text-neutral-300">{label}</p>
+      <p className="text-sm font-medium text-slate-600">{label}</p>
       <RadioGroup value={value} onValueChange={onChange} className="space-y-2">
         {options.map(opt => (
-          <label key={opt} className="flex items-center gap-3 p-3 bg-neutral-900 rounded-xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
-            <RadioGroupItem value={opt} className="border-neutral-600 text-indigo-500" />
-            <Label className="text-sm text-neutral-200 cursor-pointer">{opt}</Label>
+          <label key={opt} className="flex items-center gap-3 p-3 bg-white rounded-xl border border-violet-100 cursor-pointer hover:border-violet-300 transition-colors shadow-sm">
+            <RadioGroupItem value={opt} className="border-violet-300 text-violet-600" />
+            <Label className="text-sm text-slate-700 cursor-pointer">{opt}</Label>
           </label>
         ))}
       </RadioGroup>
@@ -238,40 +238,46 @@ export function Onboarding() {
   const renderConsent = () => (
     <div className="flex-1 space-y-8 mt-12">
       <div className="flex justify-center">
-        <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center">
-          <Activity className="w-10 h-10 text-indigo-400" />
+        <div className="w-20 h-20 bg-violet-100 rounded-full flex items-center justify-center">
+          <Activity className="w-10 h-10 text-violet-600" />
         </div>
       </div>
-      <h1 className="text-3xl font-bold tracking-tight text-center">Bridge2AI Study</h1>
-      <p className="text-neutral-400 text-center leading-relaxed">
+      <h1 className="text-5xl font-extrabold tracking-tight text-center">AriaPitch</h1>
+      <p className="text-slate-500 text-center leading-relaxed">
         We're mapping voice biomarkers to predict health changes. Your daily recordings help build the future of diagnostic medicine with unprecedented accuracy.
       </p>
-      <div className="space-y-4 bg-neutral-900/50 p-4 rounded-2xl border border-neutral-800">
+      <div className="space-y-4 bg-violet-50/60 p-4 rounded-2xl border border-violet-100">
         <div className="flex gap-3 items-start">
-          <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-neutral-300">Your voice data is encrypted and completely anonymized.</p>
+          <ShieldCheck className="w-5 h-5 text-violet-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-600">Your data is completely anonymized.</p>
         </div>
         <div className="flex gap-3 items-start">
-          <HeartPulse className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-neutral-300">Discover early signs of vocal strain or fatigue before it happens.</p>
+          <HeartPulse className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+          <p className="text-sm text-slate-600">Discover early signs of vocal strain or fatigue before it happens.</p>
         </div>
       </div>
-      <label className="flex gap-3 items-center p-4 bg-neutral-900 rounded-2xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
-        <div className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${agreed ? "bg-indigo-500 border-indigo-500 text-white" : "border-neutral-600 text-transparent"}`}>
-          <CheckCircle2 className="w-4 h-4" />
-        </div>
-        <span className="text-sm text-neutral-200">I agree to contribute to the Bridge2AI voice study.</span>
-        <input type="checkbox" className="hidden" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-      </label>
+      <p className="text-sm text-slate-400 text-center">
+        Powered by{" "}
+        <a href="https://b2ai-voice.org" target="_blank" rel="noopener noreferrer" className="text-violet-500 hover:text-violet-700 font-semibold underline underline-offset-2 transition-colors">
+          Bridge2AI Voice
+        </a>
+      </p>
+      <button
+        type="button"
+        onClick={() => setAgreed(true)}
+        className={`w-full py-4 text-base font-medium rounded-2xl transition-colors ${agreed ? "bg-violet-600 text-white border border-violet-600" : "text-violet-600 border border-violet-200 hover:border-violet-400 hover:bg-violet-50"}`}
+      >
+        I wish to participate
+      </button>
       <button
         type="button"
         onClick={() => {
           setUserData(prev => ({ ...prev, optedIn: false, onboardingComplete: true }));
           navigate("/");
         }}
-        className="w-full py-3 text-sm text-neutral-400 hover:text-rose-400 transition-colors underline underline-offset-2"
+        className="w-full py-4 text-base font-medium text-slate-500 hover:text-rose-500 transition-colors border border-slate-200 hover:border-rose-200 rounded-2xl"
       >
-        I do not wish to participate — Opt out of Bridge2AI study
+        I do not wish to participate — continue to recording
       </button>
     </div>
   );
@@ -280,7 +286,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Diagnostic Group</h1>
-        <p className="text-neutral-400 mt-2">Do you have any diagnosed conditions? Select all that apply.</p>
+        <p className="text-slate-500 mt-2">Do you have any diagnosed conditions? Select all that apply.</p>
       </div>
       <CheckboxGroup
         label=""
@@ -295,7 +301,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Voice Disorder</h1>
-        <p className="text-neutral-400 mt-2">Which voice condition(s) apply to you?</p>
+        <p className="text-slate-500 mt-2">Which voice condition(s) apply to you?</p>
       </div>
       <CheckboxGroup
         label=""
@@ -311,7 +317,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Neurological Disorder</h1>
-        <p className="text-neutral-400 mt-2">Which neurological condition(s) apply to you?</p>
+        <p className="text-slate-500 mt-2">Which neurological condition(s) apply to you?</p>
       </div>
       <CheckboxGroup
         label=""
@@ -327,7 +333,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Mood & Psychiatric</h1>
-        <p className="text-neutral-400 mt-2">Which mood or psychiatric condition(s) apply to you?</p>
+        <p className="text-slate-500 mt-2">Which mood or psychiatric condition(s) apply to you?</p>
       </div>
       <CheckboxGroup
         label=""
@@ -343,7 +349,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Respiratory Disorder</h1>
-        <p className="text-neutral-400 mt-2">Which respiratory condition(s) apply to you?</p>
+        <p className="text-slate-500 mt-2">Which respiratory condition(s) apply to you?</p>
       </div>
       <CheckboxGroup
         label=""
@@ -359,7 +365,7 @@ export function Onboarding() {
     <div className="flex-1 space-y-6 mt-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Demographics</h1>
-        <p className="text-neutral-400 mt-2">Help us contextualize your biomarkers with a few baseline details.</p>
+        <p className="text-slate-500 mt-2">Help us contextualize your biomarkers with a few baseline details.</p>
       </div>
       <div className="space-y-6">
         <RadioField
@@ -393,9 +399,9 @@ export function Onboarding() {
           onChange={(v) => setSurveyAnswer("primaryLanguage", v)}
         />
         <div className="space-y-3">
-          <p className="text-sm font-medium text-neutral-300">Age Group</p>
+          <p className="text-sm font-medium text-slate-600">Age Group</p>
           <Select value={surveyAnswers.ageGroup} onValueChange={(v) => setSurveyAnswer("ageGroup", v)}>
-            <SelectTrigger className="w-full bg-neutral-900 border-neutral-800 text-neutral-200">
+            <SelectTrigger className="w-full bg-white border-violet-100 text-slate-700">
               <SelectValue placeholder="Select age group..." />
             </SelectTrigger>
             <SelectContent>
@@ -422,15 +428,15 @@ export function Onboarding() {
   const isLastStep = currentStepIdx === totalSteps - 1;
 
   return (
-    <div className="flex flex-col h-full bg-neutral-950 text-neutral-50 p-6 overflow-y-auto relative z-10">
+    <div className="flex flex-col h-full bg-[#faf8ff] text-slate-900 p-6 overflow-y-auto relative z-10">
       {/* Progress bar — hidden on consent step */}
       {currentStep !== "consent" && (
         <div className="mb-4 space-y-2">
-          <div className="flex justify-between text-xs text-neutral-500">
+          <div className="flex justify-between text-xs text-slate-400">
             <span>Step {currentStepIdx + 1} of {totalSteps}</span>
             <span>{Math.round(progressPercent)}%</span>
           </div>
-          <Progress value={progressPercent} className="bg-neutral-800 h-2" />
+          <Progress value={progressPercent} className="bg-violet-100 h-2" />
         </div>
       )}
 
@@ -444,11 +450,12 @@ export function Onboarding() {
         >
           {stepContent[currentStep]()}
 
+          {(currentStep !== "consent" || agreed) && (
           <div className="flex gap-3 mt-8">
             {currentStepIdx > 0 && (
               <button
                 onClick={handleBack}
-                className="flex-1 py-4 bg-neutral-800 text-neutral-200 rounded-2xl font-semibold hover:bg-neutral-700 transition-colors flex justify-center items-center gap-2"
+                className="flex-1 py-4 bg-violet-50 text-slate-700 rounded-2xl font-semibold hover:bg-violet-100 transition-colors flex justify-center items-center gap-2"
               >
                 <ChevronLeft className="w-5 h-5" /> Back
               </button>
@@ -456,7 +463,7 @@ export function Onboarding() {
             <button
               onClick={handleNext}
               disabled={!canAdvance()}
-              className="flex-1 py-4 bg-indigo-500 text-white rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2"
+              className="flex-1 py-4 bg-violet-600 text-white rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-violet-700 transition-colors flex justify-center items-center gap-2 shadow-lg shadow-violet-300/30"
             >
               {isLastStep ? (
                 <>Complete Calibration <CheckCircle2 className="w-5 h-5" /></>
@@ -465,6 +472,7 @@ export function Onboarding() {
               )}
             </button>
           </div>
+          )}
         </motion.div>
       </AnimatePresence>
     </div>

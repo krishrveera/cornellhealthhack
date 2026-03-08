@@ -34,7 +34,7 @@ export function LiveWaveform({ analyser, isActive }: LiveWaveformProps) {
 
             // Draw waveform
             ctx.lineWidth = 2.5;
-            ctx.strokeStyle = "#818cf8"; // indigo-400
+            ctx.strokeStyle = "#7c3aed"; // violet-600
             ctx.beginPath();
 
             const sliceWidth = w / bufferLength;
@@ -57,7 +57,7 @@ export function LiveWaveform({ analyser, isActive }: LiveWaveformProps) {
 
             // Draw glow effect
             ctx.lineWidth = 6;
-            ctx.strokeStyle = "rgba(129, 140, 248, 0.15)";
+            ctx.strokeStyle = "rgba(124, 58, 237, 0.15)";
             ctx.beginPath();
             x = 0;
             for (let i = 0; i < bufferLength; i++) {
@@ -81,7 +81,7 @@ export function LiveWaveform({ analyser, isActive }: LiveWaveformProps) {
                 const barHeight = (value / 255) * h * 0.4;
                 const alpha = 0.3 + (value / 255) * 0.7;
 
-                ctx.fillStyle = `rgba(129, 140, 248, ${alpha})`;
+                ctx.fillStyle = `rgba(124, 58, 237, ${alpha})`;
                 ctx.fillRect(
                     i * (barWidth + 2),
                     h - barHeight,
