@@ -2,7 +2,7 @@
 Flask Application Factory
 Main entry point for the Voice Health Analysis API server.
 """
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from api.routes import api_bp
@@ -11,6 +11,7 @@ from services.prediction import load_model
 import uuid
 import logging
 import numpy as np
+import os
 
 
 class NumpyJSONProvider(DefaultJSONProvider):
@@ -41,6 +42,13 @@ def create_app():
 
     # Register routes
     app.register_blueprint(api_bp)
+
+    # Serve sample audio files for demo mode
+    @app.route('/samples/<path:filename>')
+    def serve_sample(filename):
+        """Serve sample audio files for demo mode."""
+        samples_dir = os.path.join(os.path.dirname(__file__), 'samples')
+        return send_from_directory(samples_dir, filename)
 
     # Global error handlers
     @app.errorhandler(400)

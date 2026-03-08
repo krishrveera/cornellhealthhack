@@ -51,10 +51,11 @@ CONDITION_CONFIGS = {
 
 # Task-to-condition mapping - All tasks check for benign lesions
 TASK_CONDITIONS = {
-    "sustained_vowel": ["benign_lesion"],
-    "free_speech": ["benign_lesion"],
-    "reading_passage": ["benign_lesion"],
-    "cough": ["benign_lesion"],
+    "prolonged_vowel": ["benign_lesion"],
+    "max_phonation_time": ["benign_lesion"],
+    "glides": ["benign_lesion"],
+    "harvard_sentences": ["benign_lesion"],
+    "loudness": ["benign_lesion"],
 }
 
 

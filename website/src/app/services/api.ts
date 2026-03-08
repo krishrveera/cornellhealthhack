@@ -3,7 +3,7 @@
  * Interfaces with the Flask backend ML pipeline
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // ─── Backend response shapes (match Flask response.py) ──────────────────────
 
@@ -45,6 +45,15 @@ export interface Explanation {
   details?: string;
   disclaimer?: string;
   model_version?: string;
+}
+
+/** A voice task definition */
+export interface TaskItem {
+  id: string;
+  display_name: string;
+  instruction: string;
+  prompt_text?: string;
+  min_duration_sec: number;
 }
 
 // ─── Frontend-friendly shapes ────────────────────────────────────────────────
@@ -224,6 +233,49 @@ export async function checkHealth(): Promise<HealthCheckResult> {
   }
 }
 
+/**
+ * Run demo mode - uses the sample audio file from the server.
+ * Fetches the sample file and runs it through the analysis pipeline.
+ */
+export async function runDemoAnalysis(): Promise<AnalysisResult> {
+  try {
+    // Fetch the sample audio file from the server
+    const sampleResponse = await fetch('/samples/Voice%20260307_182607.m4a');
+
+    if (!sampleResponse.ok) {
+      return {
+        success: false,
+        error: {
+          type: 'demo_error',
+          message: 'Failed to fetch demo audio file',
+          suggestion: 'Ensure the server is running and the sample file exists.',
+        },
+        requestId: 'demo_error',
+      };
+    }
+
+    const audioBlob = await sampleResponse.blob();
+
+    // Run the analysis with the sample file
+    return await analyzeAudio(audioBlob, {
+      deviceId: 'demo_mode',
+      taskType: 'sustained_vowel',
+      silenceDuration: 0.5,
+    });
+  } catch (error) {
+    console.error('Demo Mode Error:', error);
+    return {
+      success: false,
+      error: {
+        type: 'demo_error',
+        message: error instanceof Error ? error.message : 'Demo mode failed',
+        suggestion: 'Please ensure the backend server is running.',
+      },
+      requestId: 'demo_error',
+    };
+  }
+}
+
 // ─── Helper functions ────────────────────────────────────────────────────────
 
 /**
@@ -298,4 +350,18 @@ export function generateMessage(
   }
 
   return { message, isAnomaly };
+}
+
+/**
+ * Get available tasks from the server
+ */
+export async function getTasks(): Promise<TaskItem[]> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/tasks`);
+    const envelope: ApiEnvelope = await response.json();
+    return envelope.data?.tasks || [];
+  } catch (error) {
+    console.error('API Error: Failed to fetch tasks', error);
+    return [];
+  }
 }

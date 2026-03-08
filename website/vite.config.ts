@@ -19,6 +19,16 @@ export default defineConfig({
 
   server: {
     allowedHosts: 'all',
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+      '/samples': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.

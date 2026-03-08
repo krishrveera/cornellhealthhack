@@ -3,6 +3,8 @@ API Routes
 Route definitions for the Flask server.
 """
 import uuid
+import logging
+import time
 import numpy as np
 from flask import Blueprint, request
 from api.response import success_response, error_response, start_timer
@@ -14,6 +16,29 @@ from services.explanation import generate_explanation, generate_quality_failure_
 from services.task_definitions import get_all_tasks
 from utils.audio_io import save_upload_to_temp, cleanup_temp
 
+# ── Pretty logging setup ──────────────────────────────────────
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s', datefmt='%H:%M:%S')
+
+# Silence noisy library loggers
+for noisy in ['httpcore', 'httpx', 'openai', 'google_genai', 'numba', 'urllib3', 'werkzeug']:
+    logging.getLogger(noisy).setLevel(logging.WARNING)
+
+# ANSI colors
+class C:
+    RESET  = '\033[0m'
+    BOLD   = '\033[1m'
+    DIM    = '\033[2m'
+    GREEN  = '\033[92m'
+    YELLOW = '\033[93m'
+    RED    = '\033[91m'
+    CYAN   = '\033[96m'
+    BLUE   = '\033[94m'
+    MAGENTA= '\033[95m'
+    WHITE  = '\033[97m'
+    BG_GREEN = '\033[42m'
+    BG_RED   = '\033[41m'
+
 
 api_bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
@@ -23,9 +48,16 @@ def analyze():
     """Main analysis endpoint - runs full pipeline."""
     request_id = str(uuid.uuid4())
     start_timer(request_id)
+    pipeline_start = time.time()
+    rid = request_id[:8]  # Short ID for readability
+
+    logger.info(f"\n{C.CYAN}{'━'*60}{C.RESET}")
+    logger.info(f"{C.CYAN}📨 POST /analyze{C.RESET}  {C.DIM}id={rid}{C.RESET}")
+    logger.info(f"{C.DIM}   Content-Type: {request.content_type}  Length: {request.content_length}{C.RESET}")
 
     # Validate request
     if "audio" not in request.files:
+        logger.warning(f"{C.RED}❌ No 'audio' file in request. Keys: {list(request.files.keys())}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message="No audio file provided.",
@@ -39,8 +71,11 @@ def analyze():
     task_type = request.form.get("task_type", "sustained_vowel")
     silence_sec = float(request.form.get("silence_duration_sec", 3.0))
 
-    valid_tasks = ["sustained_vowel", "free_speech", "reading_passage", "cough"]
+    logger.info(f"{C.DIM}   📎 {audio_file.filename} ({audio_file.content_type})  task={task_type}{C.RESET}")
+
+    valid_tasks = ["prolonged_vowel", "max_phonation_time", "glides", "harvard_sentences", "loudness"]
     if task_type not in valid_tasks:
+        logger.warning(f"{C.RED}❌ Invalid task_type: {task_type}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message=f"Invalid task_type '{task_type}'.",
@@ -52,7 +87,9 @@ def analyze():
     # Save to temp file
     try:
         temp_path = save_upload_to_temp(audio_file)
+        logger.info(f"{C.BLUE}   ① Save{C.RESET}         ✅ saved to temp")
     except ValueError as e:
+        logger.error(f"{C.RED}   ① Save         ❌ {e}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message=str(e),
@@ -64,9 +101,14 @@ def analyze():
 
     try:
         # Quality Gate
+        t0 = time.time()
         gate_result = run_quality_gate(temp_path, device_id, task_type, silence_sec)
-
-        if not gate_result["passed"]:
+        passed = gate_result['passed']
+        status = f"{C.GREEN}✅ PASSED{C.RESET}" if passed else f"{C.RED}❌ FAILED{C.RESET}"
+        logger.info(f"{C.BLUE}   ② Quality Gate{C.RESET}  {status}  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        if not passed:
+            for chk in gate_result.get('failed_checks', []):
+                logger.info(f"{C.RED}      ↳ {chk['check']}: {chk['value']} {chk['unit']} (need {chk['threshold']}){C.RESET}")
             suggestion = generate_quality_failure_suggestion(gate_result)
             return error_response(
                 error_type="quality_gate_failure",
@@ -80,18 +122,28 @@ def analyze():
             )
 
         # Preprocessing
+        t0 = time.time()
         processed_path, preproc_info = run_preprocessing(
             temp_path, device_id, silence_sec, gate_result
         )
+        logger.info(f"{C.BLUE}   ③ Preprocess{C.RESET}   ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # Feature Extraction
+        t0 = time.time()
         features = extract_features(processed_path, task_type)
+        logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features)} extracted  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # ML Prediction
+        t0 = time.time()
         predictions = predict(features, task_type)
+        logger.info(f"{C.BLUE}   ⑤ Prediction{C.RESET}   ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        for p in predictions:
+            logger.info(f"{C.DIM}      ↳ {p['condition_name']}: {p['probability_percent']}%{C.RESET}")
 
         # LLM Explanation
+        t0 = time.time()
         explanation = generate_explanation(features, predictions, task_type)
+        logger.info(f"{C.MAGENTA}   ⑥ LLM{C.RESET}          ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # Assemble response
         data = {
@@ -102,6 +154,10 @@ def analyze():
             "explanation": explanation
         }
 
+        total_time = time.time() - pipeline_start
+        logger.info(f"{C.GREEN}{C.BOLD}   🏁 DONE{C.RESET}         {C.GREEN}200 OK  {C.DIM}({total_time:.2f}s total){C.RESET}")
+        logger.info(f"{C.CYAN}{'━'*60}{C.RESET}")
+
         return success_response(
             data=data,
             message="Analysis complete.",
@@ -110,6 +166,7 @@ def analyze():
         )
 
     except Exception as e:
+        logger.exception(f"{C.RED}{C.BOLD}   💥 ERROR{C.RESET}  {C.RED}{e}{C.RESET}")
         return error_response(
             error_type="processing_error",
             message=f"An error occurred during processing: {str(e)}",
@@ -251,9 +308,16 @@ def demo_analyze():
     """
     request_id = str(uuid.uuid4())
     start_timer(request_id)
+    pipeline_start = time.time()
+    rid = request_id[:8]
+
+    logger.info(f"\n{C.CYAN}{'━'*60}{C.RESET}")
+    logger.info(f"{C.CYAN}📨 POST /demo/analyze{C.RESET}  {C.DIM}id={rid}{C.RESET}")
+    logger.info(f"{C.DIM}   Content-Type: {request.content_type}  Length: {request.content_length}{C.RESET}")
 
     # Validate request
     if "audio" not in request.files:
+        logger.warning(f"{C.RED}❌ No 'audio' file in request. Keys: {list(request.files.keys())}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message="No audio file provided.",
@@ -267,8 +331,11 @@ def demo_analyze():
     task_type = request.form.get("task_type", "sustained_vowel")
     silence_sec = float(request.form.get("silence_duration_sec", 3.0))
 
-    valid_tasks = ["sustained_vowel", "free_speech", "reading_passage", "cough"]
+    logger.info(f"{C.DIM}   📎 {audio_file.filename} ({audio_file.content_type})  task={task_type}{C.RESET}")
+
+    valid_tasks = ["prolonged_vowel", "max_phonation_time", "glides", "harvard_sentences", "loudness"]
     if task_type not in valid_tasks:
+        logger.warning(f"{C.RED}❌ Invalid task_type: {task_type}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message=f"Invalid task_type '{task_type}'.",
@@ -280,7 +347,9 @@ def demo_analyze():
     # Save to temp file
     try:
         temp_path = save_upload_to_temp(audio_file)
+        logger.info(f"{C.BLUE}   ① Save{C.RESET}         ✅ saved to temp")
     except ValueError as e:
+        logger.error(f"{C.RED}   ① Save         ❌ {e}{C.RESET}")
         return error_response(
             error_type="validation_error",
             message=str(e),
@@ -292,16 +361,17 @@ def demo_analyze():
 
     try:
         # Quality Gate
+        t0 = time.time()
         gate_result = run_quality_gate(temp_path, device_id, task_type, silence_sec)
-
-        if not gate_result["passed"]:
+        passed = gate_result['passed']
+        status = f"{C.GREEN}✅ PASSED{C.RESET}" if passed else f"{C.RED}❌ FAILED{C.RESET}"
+        logger.info(f"{C.BLUE}   ② Quality Gate{C.RESET}  {status}  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        if not passed:
+            for chk in gate_result.get('failed_checks', []):
+                logger.info(f"{C.RED}      ↳ {chk['check']}: {chk['value']} {chk['unit']} (need {chk['threshold']}){C.RESET}")
             # Generate visualizations even for failed quality gate
             from services.visualization import generate_all_visualizations
-
-            visualizations = generate_all_visualizations(
-                temp_path, gate_result, {}
-            )
-
+            visualizations = generate_all_visualizations(temp_path, gate_result, {})
             suggestion = generate_quality_failure_suggestion(gate_result)
             return error_response(
                 error_type="quality_gate_failure",
@@ -315,11 +385,14 @@ def demo_analyze():
             )
 
         # Preprocessing
+        t0 = time.time()
         processed_path, preproc_info = run_preprocessing(
             temp_path, device_id, silence_sec, gate_result
         )
+        logger.info(f"{C.BLUE}   ③ Preprocess{C.RESET}   ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # Feature Extraction (get RAW features for visualization)
+        t0 = time.time()
         try:
             from senselab.audio.data_structures import Audio
             from senselab.audio.tasks.features_extraction import extract_features_from_audios
@@ -331,20 +404,29 @@ def demo_analyze():
             # Also get flattened features for ML
             from services.feature_extraction import extract_features, _flatten_b2ai_features
             features_flattened = _flatten_b2ai_features(raw_features)
+            logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features_flattened)} (senselab)  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
-        except ImportError:
-            # Fallback to basic features
+        except ImportError as ie:
+            logger.info(f"{C.YELLOW}   ④ Features{C.RESET}     ⚠️  senselab unavailable, using basic  {C.DIM}({ie}){C.RESET}")
             from services.feature_extraction import extract_features
             features_flattened = extract_features(processed_path, task_type)
             raw_features = {}
+            logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features_flattened)} (basic)  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # ML Prediction
+        t0 = time.time()
         predictions = predict(features_flattened, task_type)
+        logger.info(f"{C.BLUE}   ⑤ Prediction{C.RESET}   ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        for p in predictions:
+            logger.info(f"{C.DIM}      ↳ {p['condition_name']}: {p['probability_percent']}%{C.RESET}")
 
         # LLM Explanation
+        t0 = time.time()
         explanation = generate_explanation(features_flattened, predictions, task_type)
+        logger.info(f"{C.MAGENTA}   ⑥ LLM{C.RESET}          ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # Generate Visualizations
+        t0 = time.time()
         from services.visualization import (
             generate_all_visualizations,
             generate_b2ai_feature_visualizations
@@ -358,6 +440,7 @@ def demo_analyze():
         if raw_features:
             feature_viz = generate_b2ai_feature_visualizations(raw_features)
             visualizations.update(feature_viz)
+        logger.info(f"{C.BLUE}   ⑦ Viz{C.RESET}           ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
 
         # Assemble response
         data = {
@@ -370,6 +453,10 @@ def demo_analyze():
             "visualizations": visualizations  # Base64-encoded PNGs
         }
 
+        total_time = time.time() - pipeline_start
+        logger.info(f"{C.GREEN}{C.BOLD}   🏁 DONE{C.RESET}         {C.GREEN}200 OK  {C.DIM}({total_time:.2f}s total){C.RESET}")
+        logger.info(f"{C.CYAN}{'━'*60}{C.RESET}")
+
         return success_response(
             data=data,
             message="Demo analysis complete with visualizations.",
@@ -378,8 +465,7 @@ def demo_analyze():
         )
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"{C.RED}{C.BOLD}   💥 ERROR{C.RESET}  {C.RED}{e}{C.RESET}")
         return error_response(
             error_type="processing_error",
             message=f"An error occurred during processing: {str(e)}",

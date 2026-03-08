@@ -1,40 +1,46 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { useAppContext } from "../../AppContext";
 import { motion, AnimatePresence } from "motion/react";
 import { Mic, CheckCircle2, XCircle, AlertTriangle, Play, Square, Activity } from "lucide-react";
-import { analyzeAudio, extractBiomarkers, generateMessage } from "../../services/api";
+import { analyzeAudio, extractBiomarkers, generateMessage, runDemoAnalysis } from "../../services/api";
 import { LiveWaveform } from "../ui/LiveWaveform";
 
-type FlowState = "PREPARING" | "INITIAL_DELAY" | "SILENCE_COUNTDOWN" | "SILENCE_RECORDING" | "RECORDING" | "ANALYZING" | "RESULT";
+type FlowState = "PREPARING" | "INITIAL_DELAY" | "SILENCE_COUNTDOWN" | "SILENCE_RECORDING" | "RECORDING" | "ANALYZING" | "RESULT" | "SHOW_DATA";
 
-const PROMPTS = [
-  {
-    type: "Vowel",
-    text: "1, 2, 3 aah",
-    instruction: "Repeat '1, 2, 3 aah' in your normal voice and hold the sound 'aah' for as long as you can",
-    recordingDuration: 10, // seconds - sustained vowel
-  },
-  {
-    type: "Reading",
-    text: "Do you like amusement parks? Well, I sure do. To amuse myself, I went twice last spring. My most MEMORABLE moment was riding on the Caterpillar, which is a gigantic rollercoaster high above the ground. When I saw how high the Caterpillar rose into the bright blue sky I knew it was for me. After waiting in line for thirty minutes, I made it to the front where the man measured my height to see if I was tall enough. I gave the man my coins, asked for change, and jumped on the cart. Tick, tick, tick, the Caterpillar climbed slowly up the tracks. It went SO high I could see the parking lot. Boy was I SCARED! I thought to myself, \"There's no turning back now.\" People were so scared they screamed as we swiftly zoomed fast, fast, and faster along the tracks. As quickly as it started, the Caterpillar came to a stop. Unfortunately, it was time to pack the car and drive home. That night I dreamt of the wild ride on the Caterpillar. Taking a trip to the amusement park and riding on the Caterpillar was my MOST memorable moment ever!",
-    instruction: "Read the Caterpillar Passage out loud in your typical voice",
-    recordingDuration: 110, // seconds - 1:50 as per protocol
-  }
-];
+// We will load prompts dynamically from the server
+interface Prompt {
+  id: string;
+  type: string;
+  text: string;
+  instruction: string;
+  recordingDuration: number;
+}
 
 export function RecordingFlow() {
   const { userData, setUserData } = useAppContext();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDemoMode = (location.state as any)?.demoMode || false;
+
   const [flowState, setFlowState] = useState<FlowState>("PREPARING");
   const [countdown, setCountdown] = useState(2); // Initial delay countdown
   const [silenceCountdown, setSilenceCountdown] = useState(3); // 3 seconds of silence
   const [recordingTime, setRecordingTime] = useState(0);
-  const [currentPrompt, setCurrentPrompt] = useState(PROMPTS[1]);
+  const [currentPrompt, setCurrentPrompt] = useState<Prompt | null>(null);
   const [activeWordIndex, setActiveWordIndex] = useState(0);
   const [isSuccess, setIsSuccess] = useState(true);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [displayData, setDisplayData] = useState<{
+    pitch: number;
+    shimmer: number;
+    jitter: number;
+    spectralCentroid: number;
+    harmonicRatio: number;
+    message: string;
+    isAnomaly: boolean;
+  } | null>(null);
 
   // Audio refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -45,7 +51,29 @@ export function RecordingFlow() {
 
   // Initialize
   useEffect(() => {
-    setCurrentPrompt(PROMPTS[Math.floor(Math.random() * PROMPTS.length)]);
+    import("../../services/api").then(({ getTasks }) => {
+      getTasks().then(serverTasks => {
+        if (serverTasks && serverTasks.length > 0) {
+          const formattedPrompts: Prompt[] = serverTasks.map(t => ({
+            id: t.id,
+            type: t.display_name,
+            text: t.prompt_text || t.instruction,
+            instruction: t.instruction,
+            recordingDuration: t.min_duration_sec
+          }));
+          setCurrentPrompt(formattedPrompts[Math.floor(Math.random() * formattedPrompts.length)]);
+        } else {
+          // Fallback
+          setCurrentPrompt({
+            id: "prolonged_vowel",
+            type: "Vowel Task",
+            text: "1, 2, 3 aah",
+            instruction: "Repeat '1, 2, 3 aah' in your normal voice and hold the sound 'aah' for as long as you can",
+            recordingDuration: 10
+          });
+        }
+      });
+    });
   }, []);
 
   // Cleanup on unmount
@@ -155,7 +183,7 @@ export function RecordingFlow() {
 
   // Initial Delay Logic - Give user time to understand what's happening
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (flowState === "INITIAL_DELAY") {
       if (countdown > 0) {
         timer = setTimeout(() => setCountdown(c => c - 1), 1000);
@@ -169,7 +197,7 @@ export function RecordingFlow() {
 
   // Silence Countdown Logic
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (flowState === "SILENCE_COUNTDOWN") {
       if (silenceCountdown > 0) {
         timer = setTimeout(() => setSilenceCountdown(c => c - 1), 1000);
@@ -183,7 +211,7 @@ export function RecordingFlow() {
 
   // Silence Recording Timer - 3 seconds of silence
   useEffect(() => {
-    let timer: NodeJS.Timeout;
+    let timer: ReturnType<typeof setTimeout>;
     if (flowState === "SILENCE_RECORDING") {
       if (recordingTime < 3) {
         timer = setTimeout(() => setRecordingTime(t => t + 1), 1000);
@@ -197,15 +225,15 @@ export function RecordingFlow() {
 
   // Start actual recording when entering silence countdown (need to capture the silence)
   useEffect(() => {
-    if (flowState === "SILENCE_COUNTDOWN") {
+    if (flowState === "SILENCE_COUNTDOWN" && !isDemoMode) {
       startRecording();
     }
-  }, [flowState]);
+  }, [flowState, isDemoMode]);
 
   // Recording Timer - Auto-stop after duration
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (flowState === "RECORDING") {
+    let timer: ReturnType<typeof setTimeout>;
+    if (flowState === "RECORDING" && currentPrompt) {
       if (recordingTime < currentPrompt.recordingDuration) {
         timer = setTimeout(() => setRecordingTime(t => t + 1), 1000);
       } else {
@@ -216,22 +244,28 @@ export function RecordingFlow() {
     return () => clearTimeout(timer);
   }, [recordingTime, flowState, currentPrompt]);
 
-  // Analyzing Logic - Call real API
+  // Analyzing Logic - Call real API or demo API
   useEffect(() => {
-    if (flowState === "ANALYZING" && audioBlob) {
+    if (flowState === "ANALYZING") {
       const runAnalysis = async () => {
         try {
           setAnalysisError(null);
 
-          // Determine task type based on prompt
-          const taskType = currentPrompt.type === "Vowel" ? "sustained_vowel" : "reading_passage";
+          let result;
 
-          // Call the backend API
-          const result = await analyzeAudio(audioBlob, {
-            deviceId: 'web_app',
-            taskType,
-            silenceDuration: 0.5,
-          });
+          if (isDemoMode) {
+            // Demo mode: use pre-loaded sample file
+            result = await runDemoAnalysis();
+          } else if (audioBlob && currentPrompt) {
+            // Normal mode: use recorded audio
+            result = await analyzeAudio(audioBlob, {
+              deviceId: 'web_app',
+              taskType: (currentPrompt.id as any),
+              silenceDuration: 0.5,
+            });
+          } else {
+            throw new Error("No audio data available");
+          }
 
           if (result.success && result.data) {
             // Analysis successful
@@ -269,7 +303,7 @@ export function RecordingFlow() {
 
       runAnalysis();
     }
-  }, [flowState, audioBlob, currentPrompt]);
+  }, [flowState, audioBlob, currentPrompt, isDemoMode]);
 
   const handleStart = async () => {
     setCountdown(2);
@@ -277,19 +311,31 @@ export function RecordingFlow() {
     setRecordingTime(0);
     setActiveWordIndex(0);
 
-    const ok = await startAudioCapture();
-    if (ok) {
+    if (isDemoMode) {
+      // Demo mode: skip microphone access, go straight to flow
       setFlowState("INITIAL_DELAY");
     } else {
-      // Fallback: proceed without audio if mic is denied
-      setFlowState("INITIAL_DELAY");
+      // Normal mode: request microphone access
+      const ok = await startAudioCapture();
+      if (ok) {
+        setFlowState("INITIAL_DELAY");
+      } else {
+        // Fallback: proceed without audio if mic is denied
+        setFlowState("INITIAL_DELAY");
+      }
     }
   };
 
   const handleStopRecording = async () => {
-    await stopAndProcessAudio();
-    stopAudioStream();
-    setFlowState("ANALYZING");
+    if (isDemoMode) {
+      // Demo mode: skip audio processing, go straight to analysis
+      setFlowState("ANALYZING");
+    } else {
+      // Normal mode: process recorded audio
+      await stopAndProcessAudio();
+      stopAudioStream();
+      setFlowState("ANALYZING");
+    }
   };
 
   const finishRecording = () => {
@@ -321,6 +367,17 @@ export function RecordingFlow() {
         message = "Your voice exhibits slight jitter today, but pitch is stable. Stay hydrated!";
         isAnomaly = false;
       }
+
+      // Store display data
+      setDisplayData({
+        pitch,
+        shimmer,
+        jitter,
+        spectralCentroid,
+        harmonicRatio,
+        message,
+        isAnomaly,
+      });
 
       const newEntry = {
         date: new Date().toLocaleDateString('en-US', { weekday: 'short' }),
@@ -362,8 +419,13 @@ export function RecordingFlow() {
       }
 
       setUserData(prev => ({ ...prev, ...updates }));
+
+      // Show the data screen instead of navigating home
+      setFlowState("SHOW_DATA");
+    } else {
+      // If failed, restart
+      navigate("/");
     }
-    navigate("/");
   };
 
   return (
@@ -377,15 +439,21 @@ export function RecordingFlow() {
         >
           <XCircle className="w-6 h-6" />
         </button>
-        <span className="text-sm font-medium tracking-wide text-neutral-400 uppercase">
-          {flowState === "PREPARING" && "Get Ready"}
-          {flowState === "INITIAL_DELAY" && "Get Ready"}
-          {flowState === "SILENCE_COUNTDOWN" && "Prepare for Silence"}
-          {flowState === "SILENCE_RECORDING" && "Recording Silence"}
-          {flowState === "RECORDING" && "Recording"}
-          {flowState === "ANALYZING" && "Analyzing"}
-          {flowState === "RESULT" && "Done"}
-        </span>
+        <div className="flex flex-col items-center">
+          {isDemoMode && (
+            <span className="text-xs font-bold tracking-wider text-cyan-400 mb-1">DEMO MODE</span>
+          )}
+          <span className="text-sm font-medium tracking-wide text-neutral-400 uppercase">
+            {flowState === "PREPARING" && "Get Ready"}
+            {flowState === "INITIAL_DELAY" && "Get Ready"}
+            {flowState === "SILENCE_COUNTDOWN" && "Prepare for Silence"}
+            {flowState === "SILENCE_RECORDING" && "Recording Silence"}
+            {flowState === "RECORDING" && "Recording"}
+            {flowState === "ANALYZING" && "Analyzing"}
+            {flowState === "RESULT" && "Done"}
+            {flowState === "SHOW_DATA" && "Your Results"}
+          </span>
+        </div>
         <div className="w-6" />
       </header>
 
@@ -404,9 +472,14 @@ export function RecordingFlow() {
                 <Mic className="w-8 h-8 sm:w-10 sm:h-10 text-indigo-400" />
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold mb-2">Daily Voice Check</h2>
+                <h2 className="text-xl sm:text-2xl font-bold mb-2">
+                  {isDemoMode ? "Demo Voice Analysis" : "Daily Voice Check"}
+                </h2>
                 <p className="text-neutral-400 max-w-xs mx-auto text-sm leading-relaxed">
-                  Find a quiet place. First, we'll record 3 seconds of silence to calibrate, then you'll complete a voice task.
+                  {isDemoMode
+                    ? "This demo will simulate the prolonged vowel test using a pre-recorded sample audio file."
+                    : "Find a quiet place. First, we'll record 3 seconds of silence to calibrate, then you'll complete a voice task."
+                  }
                 </p>
               </div>
 
@@ -415,14 +488,15 @@ export function RecordingFlow() {
                   <Play className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-semibold text-white">Task: {currentPrompt.type}</h3>
-                  <p className="text-xs text-neutral-400 mt-1">{currentPrompt.instruction}</p>
+                  <h3 className="text-sm font-semibold text-white">Task: {currentPrompt?.type || "Loading..."}</h3>
+                  <p className="text-xs text-neutral-400 mt-1">{currentPrompt?.instruction || "Please wait while we set up your task."}</p>
                 </div>
               </div>
 
               <button
                 onClick={handleStart}
-                className="w-full py-4 mt-4 sm:mt-8 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold text-base sm:text-lg shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] transition-all"
+                disabled={!currentPrompt}
+                className="w-full py-4 mt-4 sm:mt-8 bg-indigo-500 hover:bg-indigo-600 disabled:bg-neutral-800 disabled:text-neutral-500 text-white rounded-2xl font-bold text-base sm:text-lg shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] transition-all"
               >
                 I'm Ready
               </button>
@@ -519,33 +593,35 @@ export function RecordingFlow() {
               <div className="text-center space-y-2">
                 <div className="text-4xl sm:text-5xl font-black text-white tabular-nums">
                   {Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}
-                  <span className="text-2xl text-neutral-500"> / {Math.floor(currentPrompt.recordingDuration / 60)}:{(currentPrompt.recordingDuration % 60).toString().padStart(2, '0')}</span>
+                  <span className="text-2xl text-neutral-500"> / {currentPrompt ? `${Math.floor(currentPrompt.recordingDuration / 60)}:${(currentPrompt.recordingDuration % 60).toString().padStart(2, '0')}` : "0:00"}</span>
                 </div>
                 <p className="text-sm text-neutral-400">Recording in progress</p>
                 <div className="w-full bg-neutral-800 rounded-full h-2 mt-3">
                   <div
                     className="bg-indigo-500 h-2 rounded-full transition-all duration-1000"
-                    style={{ width: `${(recordingTime / currentPrompt.recordingDuration) * 100}%` }}
+                    style={{ width: currentPrompt ? `${(recordingTime / currentPrompt.recordingDuration) * 100}%` : '0%' }}
                   />
                 </div>
               </div>
 
               {/* Prompt Text */}
-              <div className="w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 shadow-inner max-h-[40vh] overflow-y-auto">
-                {currentPrompt.type === "Reading" ? (
-                  <div className="text-base sm:text-lg font-medium leading-relaxed text-white text-left">
-                    {currentPrompt.text}
-                  </div>
-                ) : (
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-indigo-400 text-center"
-                  >
-                    {currentPrompt.text}
-                  </motion.div>
-                )}
-              </div>
+              {currentPrompt && (
+                <div className="w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-4 sm:p-6 shadow-inner max-h-[40vh] overflow-y-auto">
+                  {currentPrompt.id === "reading_passage" || currentPrompt.id === "harvard_sentences" ? (
+                    <div className="text-base sm:text-lg font-medium leading-relaxed text-white text-left">
+                      {currentPrompt.text}
+                    </div>
+                  ) : (
+                    <motion.div
+                      animate={{ scale: [1, 1.05, 1] }}
+                      transition={{ repeat: Infinity, duration: 2 }}
+                      className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-indigo-400 text-center"
+                    >
+                      {currentPrompt.text}
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
               {/* Stop Recording Button */}
               <button
@@ -626,6 +702,63 @@ export function RecordingFlow() {
                 className={`w-full py-4 mt-4 text-white rounded-2xl font-bold text-base sm:text-lg transition-all ${isSuccess ? "bg-emerald-500 hover:bg-emerald-600 shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)]" : "bg-rose-500 hover:bg-rose-600 shadow-[0_0_30px_-5px_rgba(244,63,94,0.4)]"}`}
               >
                 {isSuccess ? "View Results" : "Try Again"}
+              </button>
+            </motion.div>
+          )}
+
+          {flowState === "SHOW_DATA" && displayData && (
+            <motion.div
+              key="show-data"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col items-center space-y-6 w-full max-w-2xl mx-auto"
+            >
+              <div className="text-center space-y-2">
+                <h2 className="text-2xl sm:text-3xl font-bold text-white">Your Voice Analysis</h2>
+                <p className="text-sm sm:text-base text-neutral-400">{displayData.message}</p>
+              </div>
+
+              {/* Biomarkers Grid */}
+              <div className="grid grid-cols-2 gap-4 w-full">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Pitch</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.pitch} Hz</div>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Jitter</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.jitter}%</div>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Shimmer</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.shimmer}%</div>
+                </div>
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">HNR</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.harmonicRatio} dB</div>
+                </div>
+              </div>
+
+              {/* Spectral Centroid */}
+              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6 w-full">
+                <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Spectral Centroid</div>
+                <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.spectralCentroid} Hz</div>
+              </div>
+
+              {/* Anomaly Indicator */}
+              {displayData.isAnomaly && (
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 w-full">
+                  <p className="text-amber-200 text-sm text-center">
+                    We detected some variations in your voice. Consider consulting a healthcare professional if symptoms persist.
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <button
+                onClick={() => navigate("/")}
+                className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 text-white rounded-2xl font-bold text-base sm:text-lg shadow-[0_0_40px_-10px_rgba(99,102,241,0.5)] transition-all"
+              >
+                Back to Home
               </button>
             </motion.div>
           )}

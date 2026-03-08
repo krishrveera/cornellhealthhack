@@ -23,7 +23,8 @@ transformers>=4.30.0  # For PPG extraction
 opensmile>=2.5.0  # OpenSMILE features
 
 # ML/AI (LLM Providers - install at least one)
-google-generativeai>=0.3.0  # For Gemini (recommended, free tier available)
+openai>=1.0.0  # For GPT (recommended)
+google-generativeai>=0.3.0  # For Gemini (free tier available)
 anthropic>=0.18.1  # For Claude (optional alternative)
 
 # Visualization (for demo endpoint)

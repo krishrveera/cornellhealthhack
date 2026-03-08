@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppContext } from "../../AppContext";
 import { motion, AnimatePresence } from "motion/react";
-import { Mic, Activity, Info, X, AlertTriangle, Flame, Music } from "lucide-react";
+import { Mic, Activity, Info, X, AlertTriangle, Flame, Music, Zap } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { RecordedWaveform } from "../ui/RecordedWaveform";
 import { Spectrogram } from "../ui/Spectrogram";
@@ -36,6 +36,11 @@ export function Home() {
     setUserData(prev => ({ ...prev, showHealthPopup: false }));
   };
 
+  const handleDemoMode = () => {
+    // Navigate to recording flow with demo mode enabled
+    navigate("/record", { state: { demoMode: true } });
+  };
+
   if (!userData.onboardingComplete) return null;
 
   const latestEntry = userData.history.length > 0 ? userData.history[userData.history.length - 1] : null;
@@ -50,6 +55,14 @@ export function Home() {
           <h1 className="text-lg sm:text-xl font-bold tracking-tight">AriaPitch</h1>
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={handleDemoMode}
+            className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 transition-colors"
+            title="Run Demo Analysis with Sample Audio"
+          >
+            <Zap className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="text-xs sm:text-sm font-semibold hidden sm:inline">Demo</span>
+          </button>
           {userData.optedIn && (
             <button
               onClick={() => navigate("/audio-library")}

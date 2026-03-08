@@ -1,6 +1,6 @@
 """
 LLM Explanation Service
-Generates human-readable explanations using Google Gemini or Claude AI.
+Generates human-readable explanations using OpenAI GPT, Google Gemini, or Anthropic Claude.
 """
 import json
 import os
@@ -18,13 +18,20 @@ try:
 except ImportError:
     ANTHROPIC_AVAILABLE = False
 
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 
 # Determine which LLM provider to use
-LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini").lower()  # "gemini" or "anthropic"
+LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini").lower()  # "gemini", "anthropic", or "openai"
 
 # Initialize clients based on available API keys and provider preference
 gemini_client = None
 anthropic_client = None
+openai_client = None
 
 if GEMINI_AVAILABLE and os.environ.get("GOOGLE_API_KEY"):
     gemini_client = genai.Client(api_key=os.environ.get("GOOGLE_API_KEY"))
@@ -32,8 +39,11 @@ if GEMINI_AVAILABLE and os.environ.get("GOOGLE_API_KEY"):
 if ANTHROPIC_AVAILABLE and os.environ.get("ANTHROPIC_API_KEY"):
     anthropic_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
+if OPENAI_AVAILABLE and os.environ.get("OPENAI_API_KEY"):
+    openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-def _call_gemini(prompt: str, max_tokens: int = 1000) -> str:
+
+def _call_gemini(prompt: str) -> str:
     """Call Google Gemini API using new google.genai package."""
     if gemini_client is None:
         raise ValueError("Gemini client not initialized")
@@ -44,7 +54,6 @@ def _call_gemini(prompt: str, max_tokens: int = 1000) -> str:
             model='models/gemini-3-flash-preview',
             contents=prompt,
             config={
-                "max_output_tokens": max_tokens,
                 "temperature": 0.7,
                 "response_mime_type": "application/json",  # Force JSON output
             }
@@ -62,53 +71,84 @@ def _call_gemini(prompt: str, max_tokens: int = 1000) -> str:
         raise
 
 
-def _call_anthropic(prompt: str, max_tokens: int = 1000) -> str:
+def _call_anthropic(prompt: str) -> str:
     """Call Anthropic Claude API."""
     if anthropic_client is None:
         raise ValueError("Anthropic client not initialized")
 
     response = anthropic_client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}]
     )
     return response.content[0].text
 
 
-def _call_llm(prompt: str, max_tokens: int = 1000) -> str:
+def _call_openai(prompt: str) -> str:
+    """Call OpenAI GPT API."""
+    if openai_client is None:
+        raise ValueError("OpenAI client not initialized")
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.7
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        print(f"OpenAI API error: {e}")
+        raise
+
+
+def _call_llm(prompt: str) -> str:
     """
     Call the configured LLM provider.
 
     Tries providers in this order:
     1. User's preferred provider (LLM_PROVIDER env var)
-    2. Gemini (if available)
-    3. Anthropic (if available)
-    4. Returns None if no provider available
+    2. OpenAI (if available)
+    3. Gemini (if available)
+    4. Anthropic (if available)
+    5. Returns None if no provider available
     """
     # Try preferred provider first
+    if LLM_PROVIDER == "openai" and openai_client:
+        try:
+            return _call_openai(prompt)
+        except Exception:
+            # Fall through to try other provider
+            pass
+
     if LLM_PROVIDER == "gemini" and gemini_client:
         try:
-            return _call_gemini(prompt, max_tokens)
+            return _call_gemini(prompt)
         except Exception:
             # Fall through to try other provider
             pass
 
     if LLM_PROVIDER == "anthropic" and anthropic_client:
         try:
-            return _call_anthropic(prompt, max_tokens)
+            return _call_anthropic(prompt)
         except Exception:
             pass
 
-    # Try fallback providers
+    # Try fallback providers in order of preference
+    if openai_client and LLM_PROVIDER != "openai":
+        try:
+            return _call_openai(prompt)
+        except Exception:
+            pass
+
     if gemini_client and LLM_PROVIDER != "gemini":
         try:
-            return _call_gemini(prompt, max_tokens)
+            return _call_gemini(prompt)
         except Exception:
             pass
 
     if anthropic_client and LLM_PROVIDER != "anthropic":
         try:
-            return _call_anthropic(prompt, max_tokens)
+            return _call_anthropic(prompt)
         except Exception:
             pass
 
@@ -182,31 +222,27 @@ def generate_explanation(features: dict, predictions: list, task_type: str) -> d
     The LLM receives extracted features, model predictions, and clinical thresholds.
     It produces plain-language explanations without making diagnoses.
 
-    Supports both Google Gemini and Anthropic Claude.
+    Supports OpenAI GPT, Google Gemini, and Anthropic Claude.
     Falls back to hardcoded data-driven explanation when LLM is unavailable.
     """
     # Data-driven fallback when no LLM is available
     fallback = _build_hardcoded_explanation(features, predictions, task_type)
 
-    # Extract only the most important features and predictions to keep prompt short
-    key_features = {k: v for k, v in features.items() if any(x in k.lower() for x in ['jitter', 'shimmer', 'hnr', 'f0', 'pitch'])}
-    top_predictions = predictions[:3] if len(predictions) > 3 else predictions
+    prompt = f"""Explain voice analysis results in 1 sentence each. Be reassuring.
 
-    prompt = f"""Explain voice analysis results in 1-2 sentences max. Be reassuring and concise.
-
-Features: {json.dumps(key_features)}
-Predictions: {json.dumps(top_predictions)}
+Features: {json.dumps(features)}
+Predictions: {json.dumps(predictions)}
 
 Return JSON:
 {{
-  "summary": "1-2 sentences only. If low risk, say voice is healthy. If elevated, mention it calmly.",
-  "details": "1 sentence. Mention key numbers like jitter, shimmer, or pitch if relevant."
+  "summary": "1 sentence summary of results.",
+  "details": "1 sentence with key metrics."
 }}
 
-Rules: Never diagnose. Be brief and reassuring."""
+Rules: Never diagnose. Be reassuring."""
 
     try:
-        text = _call_llm(prompt, max_tokens=500)
+        text = _call_llm(prompt)
 
         if text is None:
             # No LLM available
@@ -293,7 +329,7 @@ Failed checks:
 Be specific and actionable. Don't list the technical details — translate them into simple instructions the user can follow."""
 
     try:
-        text = _call_llm(prompt, max_tokens=200)
+        text = _call_llm(prompt)
         if text:
             return text.strip()
     except Exception as e:
