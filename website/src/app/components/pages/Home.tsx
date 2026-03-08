@@ -142,24 +142,14 @@ export function Home() {
                       </ResponsiveContainer>
                     </div>
                   </div>
-                  <div>
-                    <h3 className="text-xs text-slate-500 mb-1">Harmonic-to-Noise Ratio</h3>
-                    <div className="text-base sm:text-lg font-semibold text-purple-600">{latestEntry?.harmonicRatio ? `${latestEntry.harmonicRatio} dB` : '—'}</div>
-                    <div className="mt-2 flex items-center gap-2">
+                  <div className="col-span-2">
+                    <h3 className="text-xs text-slate-500 mb-1 text-center">Harmonic-to-Noise Ratio</h3>
+                    <div className="text-base sm:text-lg font-semibold text-purple-600 text-center">{latestEntry?.harmonicRatio ? `${latestEntry.harmonicRatio} dB` : '—'}</div>
+                    <div className="mt-2 flex items-center gap-2 max-w-xs mx-auto">
                       <div className="flex-1 h-2 bg-purple-100 rounded-full overflow-hidden">
                         <div className="h-full bg-purple-500 rounded-full" style={{ width: `${latestEntry?.harmonicRatio ? Math.min((latestEntry.harmonicRatio / 25) * 100, 100) : 0}%` }} />
                       </div>
                       <span className="text-[10px] text-slate-400">{latestEntry?.harmonicRatio && latestEntry.harmonicRatio > 13 ? 'Good' : 'Low'}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xs text-slate-500 mb-1">Spectral Centroid</h3>
-                    <div className="text-base sm:text-lg font-semibold text-cyan-600">{latestEntry?.spectralCentroid ? `${latestEntry.spectralCentroid.toLocaleString()} Hz` : '—'}</div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-cyan-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${latestEntry?.spectralCentroid ? Math.min((latestEntry.spectralCentroid / 2500) * 100, 100) : 0}%` }} />
-                      </div>
-                      <span className="text-[10px] text-slate-400">Normal</span>
                     </div>
                   </div>
                 </div>

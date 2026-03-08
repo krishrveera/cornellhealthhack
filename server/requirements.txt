@@ -15,23 +15,24 @@ scipy==1.11.4
 numpy==1.26.2
 
 # Feature Extraction (B2AI-Voice aligned)
-senselab>=0.20.0  # Bridge2AI-Voice feature extraction (recommended)
-praat-parselmouth==0.4.3  # Fallback if SenseLab unavailable
-torch>=2.0.0  # Required by SenseLab
-torchaudio>=2.0.0  # Required by SenseLab
-transformers>=4.30.0  # For PPG extraction
-opensmile>=2.5.0  # OpenSMILE features
+senselab>=0.20.0
+praat-parselmouth==0.4.3
+torch>=2.0.0
+torchaudio>=2.0.0
+opensmile>=2.5.0
 
-# ML/AI (LLM Providers - install at least one)
-openai>=1.0.0  # For GPT (recommended)
-google-generativeai>=0.3.0  # For Gemini (free tier available)
-anthropic>=0.18.1  # For Claude (optional alternative)
+# ML Classification
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+imbalanced-learn>=0.11.0
+joblib>=1.3.0
+pandas>=2.0.0
 
-# Visualization (for demo endpoint)
+# Visualization
 matplotlib>=3.7.0
 Pillow>=10.0.0
 
 # Utilities
 werkzeug==3.0.1
 python-dotenv==1.0.0
-requests>=2.31.0  # For test script
+setuptools<76.0.0

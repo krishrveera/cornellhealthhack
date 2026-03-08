@@ -2,6 +2,9 @@
 Flask Application Factory
 Main entry point for the Voice Health Analysis API server.
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, send_from_directory
 from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
@@ -87,4 +90,4 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5001)

@@ -1,8 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+venv/
+env/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+
+# Environment & secrets
+.env
+.env.local
+
+# Data (confidential)
+*.tsv
+*.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Build/cache
+.vite/
+*.log
+
+# Logs
+logs/
+
+# Old directories
 voicesignal/
 VoiceSignal.jsx
 adult/
 pediatric/
-venv/
-.env
 colab/
-node_modules/
+
+# Claude
+.claude/
+
+# Audio samples (keep server/samples/ tracked)
+*.m4a
+*.wav
+!server/samples/**

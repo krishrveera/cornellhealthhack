@@ -18,6 +18,7 @@ Pipeline:
 import os
 import warnings
 
+import joblib
 import numpy as np
 import pandas as pd
 from imblearn.over_sampling import SMOTE
@@ -41,8 +42,8 @@ warnings.filterwarnings("ignore")
 
 # ── 1. Load data ─────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FEATURES_DIR = os.path.join(BASE_DIR, "b2ai-voice", "features")
-data_path = os.path.join(FEATURES_DIR, "filtered_static_features.tsv")
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+data_path = os.path.join(PROJECT_ROOT, "Filtered_Static_Features.tsv")
 
 df = pd.read_csv(data_path, sep="\t")
 print(f"Loaded {data_path}")
@@ -118,3 +119,24 @@ print(f"  Recall:     {rec:.4f}")
 print(f"  F1 Score:   {f1:.4f}")
 print(f"  AUC-ROC:    {auc:.4f}")
 print(f"  CV F1:      {cv_f1_scores.mean():.4f} (+/- {cv_f1_scores.std():.4f})")
+
+# ── 8. Save trained model and feature names ──────────────────────────────────
+MODELS_DIR = os.path.join(os.path.dirname(BASE_DIR), "models")
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+model_path = os.path.join(MODELS_DIR, "voice_classifier.joblib")
+joblib.dump({
+    "pipeline": pipe,
+    "feature_names": list(X.columns),
+    "metrics": {
+        "accuracy": acc,
+        "precision": prec,
+        "recall": rec,
+        "f1": f1,
+        "auc_roc": auc,
+        "cv_f1_mean": cv_f1_scores.mean(),
+        "cv_f1_std": cv_f1_scores.std(),
+    },
+}, model_path)
+print(f"\n  Model saved to: {model_path}")
+print(f"  Feature count: {len(X.columns)}")

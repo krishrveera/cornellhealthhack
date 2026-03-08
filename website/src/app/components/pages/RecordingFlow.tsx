@@ -10,17 +10,33 @@ type FlowState = "PREPARING" | "INITIAL_DELAY" | "SILENCE_COUNTDOWN" | "SILENCE_
 
 const PROMPTS = [
   {
-    type: "Vowel",
-    text: "1, 2, 3 aah",
-    instruction: "Repeat '1, 2, 3 aah' in your normal voice and hold the sound 'aah' for as long as you can",
-    recordingDuration: 10, // seconds - sustained vowel
+    id: "prolonged_vowel",
+    type: "Prolonged Vowel",
+    text: "Aah...",
+    instruction: "Sustain the vowel sound /a/ at a comfortable pitch and loudness for about 8 seconds",
+    recordingDuration: 10,
   },
   {
-    type: "Reading",
-    text: "Do you like amusement parks? Well, I sure do. To amuse myself, I went twice last spring. My most MEMORABLE moment was riding on the Caterpillar, which is a gigantic rollercoaster high above the ground. When I saw how high the Caterpillar rose into the bright blue sky I knew it was for me. After waiting in line for thirty minutes, I made it to the front where the man measured my height to see if I was tall enough. I gave the man my coins, asked for change, and jumped on the cart. Tick, tick, tick, the Caterpillar climbed slowly up the tracks. It went SO high I could see the parking lot. Boy was I SCARED! I thought to myself, \"There's no turning back now.\" People were so scared they screamed as we swiftly zoomed fast, fast, and faster along the tracks. As quickly as it started, the Caterpillar came to a stop. Unfortunately, it was time to pack the car and drive home. That night I dreamt of the wild ride on the Caterpillar. Taking a trip to the amusement park and riding on the Caterpillar was my MOST memorable moment ever!",
-    instruction: "Read the Caterpillar Passage out loud in your typical voice",
-    recordingDuration: 110, // seconds - 1:50 as per protocol
-  }
+    id: "max_phonation_time",
+    type: "Max Phonation",
+    text: "Aah... (hold as long as you can)",
+    instruction: "Take a deep breath and hold the vowel /a/ for as long as you can",
+    recordingDuration: 15,
+  },
+  {
+    id: "glides",
+    type: "Pitch Glides",
+    text: "Aah ↑↓",
+    instruction: "Produce a pitch sweep: start low, glide up to your highest comfortable pitch, then back down",
+    recordingDuration: 10,
+  },
+  {
+    id: "loudness",
+    type: "Loudness",
+    text: "Aah (soft → loud)",
+    instruction: "Produce the vowel /a/ at three levels: soft, comfortable, then loud",
+    recordingDuration: 10,
+  },
 ];
 
 export function RecordingFlow() {
@@ -30,9 +46,15 @@ export function RecordingFlow() {
   const [countdown, setCountdown] = useState(2); // Initial delay countdown
   const [silenceCountdown, setSilenceCountdown] = useState(3); // 3 seconds of silence
   const [recordingTime, setRecordingTime] = useState(0);
-  const [currentPrompt, setCurrentPrompt] = useState(PROMPTS[1]);
+  const [currentPrompt, setCurrentPrompt] = useState(PROMPTS[0]);
   const [activeWordIndex, setActiveWordIndex] = useState(0);
   const [isSuccess, setIsSuccess] = useState(true);
+  const [resultFlag, setResultFlag] = useState<'green' | 'yellow' | 'orange' | 'red'>('green');
+  const [resultFlagLabel, setResultFlagLabel] = useState('');
+  const [resultSummary, setResultSummary] = useState('');
+  const [resultRecommendation, setResultRecommendation] = useState('');
+  const [resultProbability, setResultProbability] = useState(0);
+  const [resultDetails, setResultDetails] = useState('');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
@@ -223,8 +245,8 @@ export function RecordingFlow() {
         try {
           setAnalysisError(null);
 
-          // Determine task type based on prompt
-          const taskType = currentPrompt.type === "Vowel" ? "sustained_vowel" : "reading_passage";
+          // Use the prompt's server task ID directly
+          const taskType = currentPrompt.id;
 
           // Call the backend API
           const result = await analyzeAudio(audioBlob, {
@@ -237,11 +259,20 @@ export function RecordingFlow() {
             // Analysis successful
             setIsSuccess(true);
 
+            // Store flag data for result screen
+            const explanation = result.data.explanation;
+            setResultFlag((explanation as any).flag || 'green');
+            setResultFlagLabel((explanation as any).flag_label || 'Healthy');
+            setResultSummary((explanation as any).summary || '');
+            setResultRecommendation((explanation as any).recommendation || '');
+            setResultProbability((explanation as any).probability_percent || 0);
+            setResultDetails((explanation as any).details || '');
+
             // Extract biomarkers from features
             const biomarkers = extractBiomarkers(result.data.features);
 
             // Generate user-friendly message
-            const { message, isAnomaly } = generateMessage(
+            const msgResult = generateMessage(
               result.data.predictions,
               result.data.explanation
             );
@@ -249,8 +280,13 @@ export function RecordingFlow() {
             // Store results temporarily for finishRecording
             (window as any).__analysisResult = {
               biomarkers,
-              message,
-              isAnomaly,
+              message: msgResult.message,
+              isAnomaly: msgResult.isAnomaly,
+              flag: msgResult.flag,
+              flagLabel: msgResult.flagLabel,
+              recommendation: msgResult.recommendation,
+              probabilityPercent: msgResult.probabilityPercent,
+              details: msgResult.details,
               predictions: result.data.predictions,
             };
           } else {
@@ -544,19 +580,13 @@ export function RecordingFlow() {
 
               {/* Prompt Text */}
               <div className="w-full bg-white border border-violet-100 rounded-3xl p-4 sm:p-6 shadow-sm max-h-[40vh] overflow-y-auto">
-                {currentPrompt.type === "Reading" ? (
-                  <div className="text-base sm:text-lg font-medium leading-relaxed text-slate-800 text-left">
-                    {currentPrompt.text}
-                  </div>
-                ) : (
-                  <motion.div
-                    animate={{ scale: [1, 1.05, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-violet-600 text-center"
-                  >
-                    {currentPrompt.text}
-                  </motion.div>
-                )}
+                <motion.div
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="text-2xl sm:text-3xl font-bold tracking-[0.2em] text-violet-600 text-center"
+                >
+                  {currentPrompt.text}
+                </motion.div>
               </div>
 
               {/* Stop Recording Button */}
@@ -599,29 +629,80 @@ export function RecordingFlow() {
               key="result"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center space-y-6 sm:space-y-8 w-full max-w-md mx-auto"
+              className="flex flex-col items-center space-y-5 sm:space-y-6 w-full max-w-md mx-auto"
             >
               {isSuccess ? (
                 <>
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-emerald-50 rounded-full flex items-center justify-center border-4 border-emerald-400 relative">
-                    <motion.div
-                      initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}
-                    >
-                      <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-emerald-500" />
+                  {/* Flag Icon */}
+                  <div className={`w-24 h-24 sm:w-28 sm:h-28 rounded-full flex items-center justify-center border-4 relative ${
+                    resultFlag === 'green' ? 'bg-emerald-50 border-emerald-400' :
+                    resultFlag === 'yellow' ? 'bg-amber-50 border-amber-400' :
+                    resultFlag === 'orange' ? 'bg-orange-50 border-orange-400' :
+                    'bg-rose-50 border-rose-400'
+                  }`}>
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
+                      {resultFlag === 'green' && <CheckCircle2 className="w-10 h-10 sm:w-14 sm:h-14 text-emerald-500" />}
+                      {resultFlag === 'yellow' && <AlertTriangle className="w-10 h-10 sm:w-14 sm:h-14 text-amber-500" />}
+                      {resultFlag === 'orange' && <AlertTriangle className="w-10 h-10 sm:w-14 sm:h-14 text-orange-500" />}
+                      {resultFlag === 'red' && <XCircle className="w-10 h-10 sm:w-14 sm:h-14 text-rose-500" />}
                     </motion.div>
                   </div>
-                  <div className="text-center space-y-2">
-                    <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Quality Check Passed</h2>
-                    <p className="text-sm sm:text-base text-slate-500">Audio sample was clear and isolated.</p>
+
+                  {/* Flag Label + Probability */}
+                  <div className="text-center space-y-1">
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                      resultFlag === 'green' ? 'bg-emerald-100 text-emerald-700' :
+                      resultFlag === 'yellow' ? 'bg-amber-100 text-amber-700' :
+                      resultFlag === 'orange' ? 'bg-orange-100 text-orange-700' :
+                      'bg-rose-100 text-rose-700'
+                    }`}>
+                      {resultFlagLabel}
+                    </span>
+                    <p className="text-xs text-slate-400 mt-1">Screening score: {resultProbability.toFixed(1)}%</p>
                   </div>
+
+                  {/* Summary */}
+                  <div className="bg-white border border-violet-100 rounded-2xl p-4 w-full shadow-sm">
+                    <p className="text-sm text-slate-700 leading-relaxed">{resultSummary}</p>
+                    {resultDetails && (
+                      <p className="text-xs text-slate-400 mt-2">{resultDetails}</p>
+                    )}
+                  </div>
+
+                  {/* Recommendation */}
+                  {resultRecommendation && (
+                    <div className={`rounded-2xl p-4 w-full border ${
+                      resultFlag === 'green' ? 'bg-emerald-50 border-emerald-200' :
+                      resultFlag === 'yellow' ? 'bg-amber-50 border-amber-200' :
+                      resultFlag === 'orange' ? 'bg-orange-50 border-orange-200' :
+                      'bg-rose-50 border-rose-200'
+                    }`}>
+                      <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Recommendation</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{resultRecommendation}</p>
+                    </div>
+                  )}
+
+                  {/* Find a Specialist link for orange/red */}
+                  {(resultFlag === 'orange' || resultFlag === 'red') && (
+                    <a
+                      href="https://www.google.com/search?q=ENT+specialist+near+me"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`w-full py-3 text-center rounded-2xl font-semibold text-sm transition-all border-2 ${
+                        resultFlag === 'red'
+                          ? 'border-rose-400 text-rose-600 hover:bg-rose-50'
+                          : 'border-orange-400 text-orange-600 hover:bg-orange-50'
+                      }`}
+                    >
+                      Find an ENT Specialist Near You →
+                    </a>
+                  )}
                 </>
               ) : (
                 <>
-                  <div className="w-28 h-28 sm:w-32 sm:h-32 bg-rose-50 rounded-full flex items-center justify-center border-4 border-rose-400 relative">
-                    <motion.div
-                      initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}
-                    >
-                      <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-rose-500" />
+                  <div className="w-24 h-24 sm:w-28 sm:h-28 bg-rose-50 rounded-full flex items-center justify-center border-4 border-rose-400 relative">
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }}>
+                      <XCircle className="w-10 h-10 sm:w-14 sm:h-14 text-rose-500" />
                     </motion.div>
                   </div>
                   <div className="text-center space-y-2">
@@ -635,9 +716,16 @@ export function RecordingFlow() {
 
               <button
                 onClick={isSuccess ? finishRecording : handleStart}
-                className={`w-full py-4 mt-4 text-white rounded-2xl font-bold text-base sm:text-lg transition-all ${isSuccess ? "bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-200/40" : "bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-200/40"}`}
+                className={`w-full py-4 text-white rounded-2xl font-bold text-base sm:text-lg transition-all ${
+                  isSuccess
+                    ? resultFlag === 'green' ? "bg-emerald-500 hover:bg-emerald-600 shadow-lg shadow-emerald-200/40"
+                      : resultFlag === 'yellow' ? "bg-amber-500 hover:bg-amber-600 shadow-lg shadow-amber-200/40"
+                      : resultFlag === 'orange' ? "bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-200/40"
+                      : "bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-200/40"
+                    : "bg-rose-500 hover:bg-rose-600 shadow-lg shadow-rose-200/40"
+                }`}
               >
-                {isSuccess ? "View Results" : "Try Again"}
+                {isSuccess ? "View Dashboard" : "Try Again"}
               </button>
             </motion.div>
           )}

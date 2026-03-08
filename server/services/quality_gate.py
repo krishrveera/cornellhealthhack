@@ -41,8 +41,8 @@ class PipelineConfig:
         self.target_sr = 16000
         self.bit_depth = 16
         self.snr_ideal = 42.0
-        self.snr_acceptable = 30.0
-        self.snr_reject = 30.0
+        self.snr_acceptable = 15.0
+        self.snr_reject = 15.0
         self.silence_duration_sec = silence_duration_sec
         self.min_voiced_duration_sec = 3.0
         self.clipping_margin = 0.001
