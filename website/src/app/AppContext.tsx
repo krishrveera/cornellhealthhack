@@ -28,6 +28,23 @@ const defaultSurveyAnswers: SurveyAnswers = {
   ageGroup: '',
 };
 
+export type AudioRecording = {
+  id: string;
+  date: string;
+  timestamp: number;
+  pitch: number;
+  shimmer: number;
+  jitter: number;
+  message: string;
+  isAnomaly: boolean;
+  duration: number;
+  audioData?: Float32Array;
+  sampleRate?: number;
+  spectralCentroid?: number;
+  harmonicRatio?: number;
+  formants?: number[];
+};
+
 type UserData = {
   optedIn: boolean;
   onboardingComplete: boolean;
@@ -42,7 +59,10 @@ type UserData = {
     message: string;
     isAnomaly: boolean;
   }>;
+  audioRecordings: AudioRecording[];
   showHealthPopup: boolean;
+  lastRecordingData?: Float32Array;
+  lastRecordingSampleRate?: number;
 };
 
 const defaultData: UserData = {
@@ -59,6 +79,7 @@ const defaultData: UserData = {
     { date: 'Fri', pitch: 210, shimmer: 3.4, jitter: 1.1, message: "Voice is clear. Keep hydrating!", isAnomaly: false },
     { date: 'Sat', pitch: 218, shimmer: 3.9, jitter: 1.4, message: "A little extra effort detected, remember to rest.", isAnomaly: false },
   ],
+  audioRecordings: [],
   showHealthPopup: false,
 };
 
