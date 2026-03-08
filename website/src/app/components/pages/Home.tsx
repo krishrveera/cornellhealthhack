@@ -118,26 +118,26 @@ export function Home() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <h3 className="text-xs text-slate-500 mb-1">Shimmer</h3>
-                    <div className="text-base sm:text-lg font-semibold text-emerald-600">{latestEntry ? `${latestEntry.shimmer}%` : '—'}</div>
+                    <div className="text-base sm:text-lg font-semibold text-emerald-600">{latestEntry ? `${latestEntry.shimmer} dB` : '—'}</div>
                     <div className="h-16 sm:h-20 mt-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={userData.history} margin={{ top: 5, left: 5, right: 5, bottom: 0 }}>
-                          <YAxis domain={['dataMin - 0.5', 'dataMax + 0.5']} stroke="#a1a1aa" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={32} tickFormatter={(v: number) => `${v}%`} />
+                          <YAxis domain={['dataMin - 0.1', 'dataMax + 0.1']} stroke="#a1a1aa" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={32} tickFormatter={(v: number) => `${v}`} />
                           <Line type="monotone" dataKey="shimmer" stroke="#10b981" strokeWidth={2} dot={false} />
-                          <ReferenceLine y={3.0} stroke="#d4d4d8" strokeDasharray="4 3" strokeWidth={1} label={{ value: "Healthy", position: "right", fill: "#a1a1aa", fontSize: 9 }} />
+                          <ReferenceLine y={0.35} stroke="#d4d4d8" strokeDasharray="4 3" strokeWidth={1} label={{ value: "Healthy", position: "right", fill: "#a1a1aa", fontSize: 9 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
                   <div>
                     <h3 className="text-xs text-slate-500 mb-1">Jitter</h3>
-                    <div className="text-base sm:text-lg font-semibold text-amber-600">{latestEntry ? `${latestEntry.jitter}%` : '—'}</div>
+                    <div className="text-base sm:text-lg font-semibold text-amber-600">{latestEntry ? latestEntry.jitter : '—'}</div>
                     <div className="h-16 sm:h-20 mt-2">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={userData.history} margin={{ top: 5, left: 5, right: 5, bottom: 0 }}>
-                          <YAxis domain={['dataMin - 0.3', 'dataMax + 0.3']} stroke="#a1a1aa" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={32} tickFormatter={(v: number) => `${v}%`} />
+                          <YAxis domain={['dataMin - 0.005', 'dataMax + 0.005']} stroke="#a1a1aa" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => v.toFixed(3)} />
                           <Line type="monotone" dataKey="jitter" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                          <ReferenceLine y={1.0} stroke="#d4d4d8" strokeDasharray="4 3" strokeWidth={1} label={{ value: "Healthy", position: "right", fill: "#a1a1aa", fontSize: 9 }} />
+                          <ReferenceLine y={0.01} stroke="#d4d4d8" strokeDasharray="4 3" strokeWidth={1} label={{ value: "Healthy", position: "right", fill: "#a1a1aa", fontSize: 9 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
@@ -194,8 +194,8 @@ export function Home() {
                       </p>
                       <div className={`mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs ${c.meta}`}>
                         <span>Pitch: {entry.pitch}Hz</span>
-                        <span>Shimmer: {entry.shimmer}%</span>
-                        <span>Jitter: {entry.jitter}%</span>
+                        <span>Shimmer: {entry.shimmer} dB</span>
+                        <span>Jitter: {entry.jitter}</span>
                       </div>
                     </div>
                   );

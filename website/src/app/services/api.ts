@@ -300,44 +300,38 @@ export function extractBiomarkers(features: Record<string, number>) {
     return fallback;
   };
 
-  // F0 (Pitch) - OpenSMILE and Praat both provide this
+  // F0 (Pitch) in Hz
   const pitch = get(
     [
-      'opensmile.F0semitoneFrom27.5Hz_sma3nz_amean',  // OpenSMILE F0 mean
-      'praat.pitch.f0_mean_hz',                        // Praat F0 mean
-      'praat.f0.mean_hz',
-      'pitch_mean',
-      'f0_mean'
+      'praat_parselmouth.mean_f0_hertz',
+      'opensmile.F0semitoneFrom27.5Hz_sma3nz_amean',
     ],
     210
   );
 
-  // Jitter - Local jitter percentage
+  // Jitter - Local jitter (fraction, displayed as %)
   const jitter = get(
     [
-      'praat.jitter.local_percent',
-      'praat.jitter.rap_percent',
-      'jitter_local'
+      'praat_parselmouth.local_jitter',
+      'opensmile.jitterLocal_sma3nz_amean',
     ],
-    1.2
+    0.01
   );
 
-  // Shimmer - Local shimmer percentage
+  // Shimmer - Local shimmer in dB
   const shimmer = get(
     [
-      'praat.shimmer.local_percent',
-      'praat.shimmer.apq3_percent',
-      'shimmer_local'
+      'praat_parselmouth.localDB_shimmer',
+      'opensmile.shimmerLocaldB_sma3nz_amean',
     ],
-    3.4
+    0.3
   );
 
-  // HNR (Harmonics-to-Noise Ratio)
+  // HNR (Harmonics-to-Noise Ratio) in dB
   const hnr = get(
     [
-      'praat.hnr.mean_db',
-      'praat.harmonicity.mean',
-      'hnr_mean'
+      'praat_parselmouth.mean_hnr_db',
+      'opensmile.HNRdBACF_sma3nz_amean',
     ],
     18.5
   );
