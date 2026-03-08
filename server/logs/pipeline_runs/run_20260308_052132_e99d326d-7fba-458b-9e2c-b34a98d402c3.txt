@@ -1,0 +1,174 @@
+============================================================
+PIPELINE RUN: run_20260308_052132_e99d326d-7fba-458b-9e2c-b34a98d402c3.txt
+Timestamp: 2026-03-08T05:21:32.311790
+Request ID: e99d326d-7fba-458b-9e2c-b34a98d402c3
+Device ID: web_app
+Task Type: prolonged_vowel
+============================================================
+
+--- 1. QUALITY GATE ---
+Passed: True
+
+Passed Checks:
+  [PASS] silence_region: 185.9 dB (threshold: 10.0)
+  [PASS] snr: 100.0 dB (threshold: 30.0)
+  [PASS] clipping: 0.000801 fraction (threshold: 0.001)
+  [PASS] voiced_duration: 11.06 seconds (threshold: 3.0)
+
+Failed Checks:
+
+Warnings:
+
+--- 2. PREPROCESSING ---
+Original length: 14.04s
+Trimmed length: 13.54s
+SNR: 0.00 dB
+Noise Reduced: False
+RMS Energy: 0.0539
+
+--- 3. FEATURE EXTRACTION ---
+Total features extracted: 131
+
+Feature values:
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_amean: 24.107975006103516
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_stddevNorm: 0.0774582102894783
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_percentile20.0: 23.843353271484375
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_percentile50.0: 23.949234008789062
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_percentile80.0: 24.04279327392578
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_pctlrange0-2: 0.19944000244140625
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope: 0.0794115662574768
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope: 0.0
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_meanFallingSlope: 16.082304000854492
+  opensmile.F0semitoneFrom27.5Hz_sma3nz_stddevFallingSlope: 0.0
+  opensmile.loudness_sma3_amean: 0.5509042739868164
+  opensmile.loudness_sma3_stddevNorm: 0.919709324836731
+  opensmile.loudness_sma3_percentile20.0: 0.0011262546759098768
+  opensmile.loudness_sma3_percentile50.0: 0.9724610447883606
+  opensmile.loudness_sma3_percentile80.0: 1.053621530532837
+  opensmile.loudness_sma3_pctlrange0-2: 1.0524952411651611
+  opensmile.loudness_sma3_meanRisingSlope: 2.956725597381592
+  opensmile.loudness_sma3_stddevRisingSlope: 3.229900360107422
+  opensmile.loudness_sma3_meanFallingSlope: 2.5392212867736816
+  opensmile.loudness_sma3_stddevFallingSlope: 5.027768611907959
+  opensmile.spectralFlux_sma3_amean: 0.08182388544082642
+  opensmile.spectralFlux_sma3_stddevNorm: 0.8967856168746948
+  opensmile.mfcc1_sma3_amean: 28.7161808013916
+  opensmile.mfcc1_sma3_stddevNorm: 0.6838555932044983
+  opensmile.mfcc2_sma3_amean: 2.5594239234924316
+  opensmile.mfcc2_sma3_stddevNorm: 7.553896903991699
+  opensmile.mfcc3_sma3_amean: -10.433794021606445
+  opensmile.mfcc3_sma3_stddevNorm: -2.0535874366760254
+  opensmile.mfcc4_sma3_amean: 1.5080273151397705
+  opensmile.mfcc4_sma3_stddevNorm: 4.6257123947143555
+  opensmile.jitterLocal_sma3nz_amean: 0.005807915236800909
+  opensmile.jitterLocal_sma3nz_stddevNorm: 1.0066475868225098
+  opensmile.shimmerLocaldB_sma3nz_amean: 0.20548132061958313
+  opensmile.shimmerLocaldB_sma3nz_stddevNorm: 0.6537603735923767
+  opensmile.HNRdBACF_sma3nz_amean: 7.124032974243164
+  opensmile.HNRdBACF_sma3nz_stddevNorm: 0.13924799859523773
+  opensmile.logRelF0-H1-H2_sma3nz_amean: 4.266087055206299
+  opensmile.logRelF0-H1-H2_sma3nz_stddevNorm: 0.1349804550409317
+  opensmile.logRelF0-H1-A3_sma3nz_amean: 15.694428443908691
+  opensmile.logRelF0-H1-A3_sma3nz_stddevNorm: 0.7320369482040405
+  opensmile.F1frequency_sma3nz_amean: 462.8425598144531
+  opensmile.F1frequency_sma3nz_stddevNorm: 0.13331663608551025
+  opensmile.F1bandwidth_sma3nz_amean: 1380.4925537109375
+  opensmile.F1bandwidth_sma3nz_stddevNorm: 0.08960322290658951
+  opensmile.F1amplitudeLogRelF0_sma3nz_amean: -96.53690338134766
+  opensmile.F1amplitudeLogRelF0_sma3nz_stddevNorm: -1.0520893335342407
+  opensmile.F2frequency_sma3nz_amean: 1373.8387451171875
+  opensmile.F2frequency_sma3nz_stddevNorm: 0.04854336380958557
+  opensmile.F2bandwidth_sma3nz_amean: 1073.113037109375
+  opensmile.F2bandwidth_sma3nz_stddevNorm: 0.18529650568962097
+  opensmile.F2amplitudeLogRelF0_sma3nz_amean: -95.98753356933594
+  opensmile.F2amplitudeLogRelF0_sma3nz_stddevNorm: -1.0628650188446045
+  opensmile.F3frequency_sma3nz_amean: 2519.545654296875
+  opensmile.F3frequency_sma3nz_stddevNorm: 0.04279446229338646
+  opensmile.F3bandwidth_sma3nz_amean: 705.8738403320312
+  opensmile.F3bandwidth_sma3nz_stddevNorm: 0.3145235776901245
+  opensmile.F3amplitudeLogRelF0_sma3nz_amean: -104.9500503540039
+  opensmile.F3amplitudeLogRelF0_sma3nz_stddevNorm: -0.8890405893325806
+  opensmile.alphaRatioV_sma3nz_amean: -6.192088603973389
+  opensmile.alphaRatioV_sma3nz_stddevNorm: -0.1884511411190033
+  opensmile.hammarbergIndexV_sma3nz_amean: 22.616256713867188
+  opensmile.hammarbergIndexV_sma3nz_stddevNorm: 0.11851684004068375
+  opensmile.slopeV0-500_sma3nz_amean: 0.04364216327667236
+  opensmile.slopeV0-500_sma3nz_stddevNorm: 0.15283094346523285
+  opensmile.slopeV500-1500_sma3nz_amean: -0.01776438020169735
+  opensmile.slopeV500-1500_sma3nz_stddevNorm: -0.4148578941822052
+  opensmile.spectralFluxV_sma3nz_amean: 0.1330585777759552
+  opensmile.spectralFluxV_sma3nz_stddevNorm: 0.35703638195991516
+  opensmile.mfcc1V_sma3nz_amean: 40.928977966308594
+  opensmile.mfcc1V_sma3nz_stddevNorm: 0.26694026589393616
+  opensmile.mfcc2V_sma3nz_amean: -9.055098533630371
+  opensmile.mfcc2V_sma3nz_stddevNorm: -1.4381794929504395
+  opensmile.mfcc3V_sma3nz_amean: -28.44799041748047
+  opensmile.mfcc3V_sma3nz_stddevNorm: -0.367074579000473
+  opensmile.mfcc4V_sma3nz_amean: 1.7805441617965698
+  opensmile.mfcc4V_sma3nz_stddevNorm: 3.457310438156128
+  opensmile.alphaRatioUV_sma3nz_amean: -25.407400131225586
+  opensmile.hammarbergIndexUV_sma3nz_amean: 35.1965217590332
+  opensmile.slopeUV0-500_sma3nz_amean: 0.06465217471122742
+  opensmile.slopeUV500-1500_sma3nz_amean: 0.03367145359516144
+  opensmile.spectralFluxUV_sma3nz_amean: 0.047067295759916306
+  opensmile.loudnessPeaksPerSec: 0.5173687934875488
+  opensmile.VoicedSegmentsPerSec: 0.22271716594696045
+  opensmile.MeanVoicedSegmentLengthSec: 2.299999952316284
+  opensmile.StddevVoicedSegmentLengthSec: 3.2244069576263428
+  opensmile.MeanUnvoicedSegmentLength: 2.169999837875366
+  opensmile.StddevUnvoicedSegmentLength: 1.4283790588378906
+  opensmile.equivalentSoundLevel_dBp: -25.377342224121094
+  praat_parselmouth.duration: 13.54
+  praat_parselmouth.speaking_rate: 0.29542097488921715
+  praat_parselmouth.articulation_rate: 0.531632110579479
+  praat_parselmouth.phonation_ratio: 0.5556868537666174
+  praat_parselmouth.pause_rate: 0.22156573116691286
+  praat_parselmouth.mean_pause_duration: 2.005333333333333
+  praat_parselmouth.mean_f0_hertz: 110.341268611597
+  praat_parselmouth.std_f0_hertz: 8.482015869594877
+  praat_parselmouth.mean_intensity_db: 68.59177125604332
+  praat_parselmouth.std_intensity_db: 125.78784034048084
+  praat_parselmouth.range_ratio_intensity_db: -0.2202503223658374
+  praat_parselmouth.mean_hnr_db: 15.96057938890891
+  praat_parselmouth.std_hnr_db: 3.404402388341016
+  praat_parselmouth.spectral_slope: -23.94736930900543
+  praat_parselmouth.spectral_tilt: -0.011762107055037078
+  praat_parselmouth.cepstral_peak_prominence_mean: 6.6242572069327155
+  praat_parselmouth.cepstral_peak_prominence_std: 2.8940899774070905
+  praat_parselmouth.mean_f1_loc: 661.7893176024809
+  praat_parselmouth.std_f1_loc: 129.27637110030653
+  praat_parselmouth.mean_b1_loc: 121.28731024941307
+  praat_parselmouth.std_b1_loc: 145.40808332153617
+  praat_parselmouth.mean_f2_loc: 1242.6384874991045
+  praat_parselmouth.std_f2_loc: 222.92482483429578
+  praat_parselmouth.mean_b2_loc: 166.29321887705095
+  praat_parselmouth.std_b2_loc: 187.74490169828957
+  praat_parselmouth.spectral_gravity: 721.0884504584155
+  praat_parselmouth.spectral_std_dev: 333.4170313762783
+  praat_parselmouth.spectral_skewness: 1.460826560342654
+  praat_parselmouth.spectral_kurtosis: 12.000336625957887
+  praat_parselmouth.local_jitter: 0.008246505517378057
+  praat_parselmouth.localabsolute_jitter: 7.448662568790698e-05
+  praat_parselmouth.rap_jitter: 0.0045904876767453
+  praat_parselmouth.ppq5_jitter: 0.00328781506487419
+  praat_parselmouth.ddp_jitter: 0.013771463030235902
+  praat_parselmouth.local_shimmer: 0.019641902247394857
+  praat_parselmouth.localDB_shimmer: 0.18712126185939937
+  praat_parselmouth.apq3_shimmer: 0.010916596113065691
+  praat_parselmouth.apq5_shimmer: 0.012903107285902746
+  praat_parselmouth.apq11_shimmer: 0.014193878421852815
+  praat_parselmouth.dda_shimmer: 0.032749788339197075
+  torchaudio_squim.stoi: 0.5348587036132812
+  torchaudio_squim.pesq: 1.214704155921936
+  torchaudio_squim.si_sdr: -12.708060264587402
+
+--- 4. ML PREDICTION ---
+  Condition: Benign Lesion
+    Probability: 5.0%
+    Severity: low
+
+--- 5. LLM EXPLANATION ---
+Summary: The voice analysis results indicate a low probability of a benign lesion, suggesting that your vocal health is generally stable.
+Details: Key metrics show a jitter value of 0.8247, a shimmer value of 0.1871, and a harmonic-to-noise ratio (HNR) of 15.96, all within acceptable ranges.
+Model Version: b2ai-voice-v0.1.0
+============================================================

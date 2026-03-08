@@ -20,7 +20,7 @@ class PipelineConfig:
         self.butter_order = 8
         self.highpass_cutoff_hz = 80.0
         self.highpass_order = 4
-        self.apply_cmvn = True
+        self.apply_cmvn = False  # Disabled - causes issues with OpenSMILE F0 detection
         self.target_lufs = -23.0
         self.noise_reduce_strength = 0.7
         self.vad_hop_length_ms = 10.0
@@ -190,8 +190,30 @@ def run_preprocessing(audio_path: str, device_id: str, silence_sec: float,
         audio, sr, snr_verdict, silence_end_resampled, config
     )
 
+    # Calculate SNR BEFORE trimming (while we still have the noise region)
+    if silence_end_resampled > 0 and silence_end_resampled < len(audio):
+        noise_region = audio[:silence_end_resampled]
+        signal_region = audio[silence_end_resampled:]
+        noise_power = np.mean(noise_region ** 2)
+        signal_power = np.mean(signal_region ** 2)
+        if noise_power > 1e-12 and signal_power > 1e-12:
+            snr_after = 10 * np.log10(signal_power / noise_power)
+            snr_after = min(snr_after, 100.0)  # Cap unrealistic values
+        else:
+            snr_after = 0.0
+    else:
+        snr_after = 0.0
+
     # Step 6: Trim silence
     audio = step6_trim_silence(audio, silence_end_resampled)
+
+    # Validate trimmed audio isn't empty or too short
+    if len(audio) < sr * 0.5:  # Less than 0.5 seconds
+        raise ValueError(f"Trimmed audio too short ({len(audio)/sr:.2f}s). Check silence detection settings.")
+
+    # Calculate additional diagnostics on TRIMMED audio
+    rms_energy = np.sqrt(np.mean(audio ** 2))
+    trimmed_duration = len(audio) / sr
 
     # Step 7: Export
     temp_wav = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
@@ -201,12 +223,16 @@ def run_preprocessing(audio_path: str, device_id: str, silence_sec: float,
         "original_sr": original_sr,
         "output_sr": sr,
         "original_duration_sec": round(original_duration, 2),
-        "output_duration_sec": round(len(audio) / sr, 2),
+        "trimmed_duration_sec": round(trimmed_duration, 2),
+        "output_duration_sec": round(trimmed_duration, 2),  # Same as trimmed
         "lufs_before": round(lufs_before, 1),
         "lufs_after": round(lufs_after, 1),
+        "snr_db": round(snr_after, 2),
+        "rms_energy": round(rms_energy, 4),
         "highpass_applied": True,
         "cmvn_applied": config.apply_cmvn,
         "noise_reduction_applied": noise_reduction_applied,
+        "noise_reduced": noise_reduction_applied,
         "device_id": device_id
     }
 

@@ -106,9 +106,16 @@ def analyze():
         passed = gate_result['passed']
         status = f"{C.GREEN}✅ PASSED{C.RESET}" if passed else f"{C.RED}❌ FAILED{C.RESET}"
         logger.info(f"{C.BLUE}   ② Quality Gate{C.RESET}  {status}  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        
+        # Print all subchecks
+        for chk in gate_result.get('passed_checks', []):
+            logger.info(f"{C.GREEN}      ↳ [PASS] {chk['check']}: {chk['value']} {chk['unit']} {C.DIM}(threshold: {chk['threshold']}){C.RESET}")
+        for chk in gate_result.get('failed_checks', []):
+            logger.info(f"{C.RED}      ↳ [FAIL] {chk['check']}: {chk['value']} {chk['unit']} {C.DIM}(need {chk['threshold']}){C.RESET}")
+        for warn in gate_result.get('warnings', []):
+            logger.info(f"{C.YELLOW}      ↳ [WARN] {warn}{C.RESET}")
+
         if not passed:
-            for chk in gate_result.get('failed_checks', []):
-                logger.info(f"{C.RED}      ↳ {chk['check']}: {chk['value']} {chk['unit']} (need {chk['threshold']}){C.RESET}")
             suggestion = generate_quality_failure_suggestion(gate_result)
             return error_response(
                 error_type="quality_gate_failure",
@@ -127,11 +134,23 @@ def analyze():
             temp_path, device_id, silence_sec, gate_result
         )
         logger.info(f"{C.BLUE}   ③ Preprocess{C.RESET}   ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        if preproc_info:
+            logger.info(f"{C.DIM}      ↳ Original length: {preproc_info.get('original_duration_sec', 0):.2f}s{C.RESET}")
+            logger.info(f"{C.DIM}      ↳ Trimmed length: {preproc_info.get('trimmed_duration_sec', 0):.2f}s{C.RESET}")
+            logger.info(f"{C.DIM}      ↳ SNR: {preproc_info.get('snr_db', 0):.2f} dB, Noise Reduced: {preproc_info.get('noise_reduced', False)}{C.RESET}")
+            logger.info(f"{C.DIM}      ↳ RMS Energy: {preproc_info.get('rms_energy', 0):.4f}{C.RESET}")
 
         # Feature Extraction
         t0 = time.time()
         features = extract_features(processed_path, task_type)
         logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features)} extracted  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        
+        # Print sample of extracted features
+        feature_keys = list(features.keys())
+        for k in feature_keys[:10]:
+            logger.info(f"{C.DIM}      ↳ {k}: {features[k]}{C.RESET}")
+        if len(feature_keys) > 10:
+            logger.info(f"{C.DIM}      ... and {len(feature_keys) - 10} more features{C.RESET}")
 
         # ML Prediction
         t0 = time.time()
@@ -144,6 +163,14 @@ def analyze():
         t0 = time.time()
         explanation = generate_explanation(features, predictions, task_type)
         logger.info(f"{C.MAGENTA}   ⑥ LLM{C.RESET}          ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+
+        # Save detailed log to file
+        try:
+            from services.file_logger import save_pipeline_log
+            log_path = save_pipeline_log(request_id, device_id, task_type, gate_result, preproc_info, features, predictions, explanation)
+            logger.info(f"{C.CYAN}   📄 Log Saved{C.RESET}   ✅  {C.DIM}({log_path}){C.RESET}")
+        except Exception as e:
+            logger.error(f"{C.RED}Failed to save pipeline log: {e}{C.RESET}")
 
         # Assemble response
         data = {
@@ -366,9 +393,16 @@ def demo_analyze():
         passed = gate_result['passed']
         status = f"{C.GREEN}✅ PASSED{C.RESET}" if passed else f"{C.RED}❌ FAILED{C.RESET}"
         logger.info(f"{C.BLUE}   ② Quality Gate{C.RESET}  {status}  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+        
+        # Print all subchecks
+        for chk in gate_result.get('passed_checks', []):
+            logger.info(f"{C.GREEN}      ↳ [PASS] {chk['check']}: {chk['value']} {chk['unit']} {C.DIM}(threshold: {chk['threshold']}){C.RESET}")
+        for chk in gate_result.get('failed_checks', []):
+            logger.info(f"{C.RED}      ↳ [FAIL] {chk['check']}: {chk['value']} {chk['unit']} {C.DIM}(need {chk['threshold']}){C.RESET}")
+        for warn in gate_result.get('warnings', []):
+            logger.info(f"{C.YELLOW}      ↳ [WARN] {warn}{C.RESET}")
+
         if not passed:
-            for chk in gate_result.get('failed_checks', []):
-                logger.info(f"{C.RED}      ↳ {chk['check']}: {chk['value']} {chk['unit']} (need {chk['threshold']}){C.RESET}")
             # Generate visualizations even for failed quality gate
             from services.visualization import generate_all_visualizations
             visualizations = generate_all_visualizations(temp_path, gate_result, {})
@@ -401,10 +435,20 @@ def demo_analyze():
             raw_features_list = extract_features_from_audios([audio_obj])
             raw_features = raw_features_list[0] if raw_features_list else {}
 
+            # Remove unwanted torchaudio features completely, but keep torchaudio_squim and opensmile
+            if 'torchaudio' in raw_features:
+                del raw_features['torchaudio']
+
             # Also get flattened features for ML
             from services.feature_extraction import extract_features, _flatten_b2ai_features
             features_flattened = _flatten_b2ai_features(raw_features)
             logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features_flattened)} (senselab)  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+            
+            feature_keys = list(features_flattened.keys())
+            for k in feature_keys[:10]:
+                logger.info(f"{C.DIM}      ↳ {k}: {features_flattened[k]}{C.RESET}")
+            if len(feature_keys) > 10:
+                logger.info(f"{C.DIM}      ... and {len(feature_keys) - 10} more features{C.RESET}")
 
         except ImportError as ie:
             logger.info(f"{C.YELLOW}   ④ Features{C.RESET}     ⚠️  senselab unavailable, using basic  {C.DIM}({ie}){C.RESET}")
@@ -412,6 +456,12 @@ def demo_analyze():
             features_flattened = extract_features(processed_path, task_type)
             raw_features = {}
             logger.info(f"{C.BLUE}   ④ Features{C.RESET}     ✅ {len(features_flattened)} (basic)  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+            
+            feature_keys = list(features_flattened.keys())
+            for k in feature_keys[:10]:
+                logger.info(f"{C.DIM}      ↳ {k}: {features_flattened[k]}{C.RESET}")
+            if len(feature_keys) > 10:
+                logger.info(f"{C.DIM}      ... and {len(feature_keys) - 10} more features{C.RESET}")
 
         # ML Prediction
         t0 = time.time()
@@ -424,6 +474,14 @@ def demo_analyze():
         t0 = time.time()
         explanation = generate_explanation(features_flattened, predictions, task_type)
         logger.info(f"{C.MAGENTA}   ⑥ LLM{C.RESET}          ✅  {C.DIM}({time.time()-t0:.2f}s){C.RESET}")
+
+        # Save detailed log to file
+        try:
+            from services.file_logger import save_pipeline_log
+            log_path = save_pipeline_log(request_id, device_id, task_type, gate_result, preproc_info, features_flattened, predictions, explanation)
+            logger.info(f"{C.CYAN}   📄 Log Saved{C.RESET}   ✅  {C.DIM}({log_path}){C.RESET}")
+        except Exception as e:
+            logger.error(f"{C.RED}Failed to save pipeline log: {e}{C.RESET}")
 
         # Generate Visualizations
         t0 = time.time()

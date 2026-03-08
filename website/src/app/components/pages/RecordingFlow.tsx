@@ -24,7 +24,7 @@ export function RecordingFlow() {
   const isDemoMode = (location.state as any)?.demoMode || false;
 
   const [flowState, setFlowState] = useState<FlowState>("PREPARING");
-  const [countdown, setCountdown] = useState(3);
+  const [silenceCountdown, setSilenceCountdown] = useState(3);
   const [recordingTime, setRecordingTime] = useState(0);
   const [currentPrompt, setCurrentPrompt] = useState<Prompt | null>(null);
   const [isSuccess, setIsSuccess] = useState(true);
@@ -38,6 +38,8 @@ export function RecordingFlow() {
     harmonicRatio: number;
     message: string;
     isAnomaly: boolean;
+    snr?: number;
+    voicedDuration?: number;
   } | null>(null);
 
   // Audio refs
@@ -149,37 +151,31 @@ export function RecordingFlow() {
     });
   };
 
-  // Countdown: 3 → 2 → 1 → start recording view
+  // Initial delay before countdown
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
     if (flowState === "INITIAL_DELAY") {
-    let timer: ReturnType<typeof setTimeout>;
-    if (flowState === "COUNTDOWN") {
-      if (countdown > 0) {
-        timer = setTimeout(() => setCountdown(c => c - 1), 1000);
-      } else {
-        setFlowState("RECORDING");
-        setRecordingTime(0);
-      }
+      const timer = setTimeout(() => {
+        setFlowState("SILENCE_COUNTDOWN");
+        setSilenceCountdown(3);
+      }, 1000);
+      return () => clearTimeout(timer);
     }
-    return () => clearTimeout(timer);
-  }, [countdown, flowState]);
+  }, [flowState]);
 
-  // Recording timer
+  // Silence countdown: 3 → 2 → 1 → start silence recording
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    if (flowState === "RECORDING") {
-    let timer: ReturnType<typeof setTimeout>;
     if (flowState === "SILENCE_COUNTDOWN") {
+      let timer: ReturnType<typeof setTimeout>;
       if (silenceCountdown > 0) {
         timer = setTimeout(() => setSilenceCountdown(c => c - 1), 1000);
       } else {
         setFlowState("SILENCE_RECORDING");
         setRecordingTime(0);
       }
+      return () => clearTimeout(timer);
     }
-    return () => clearTimeout(timer);
   }, [silenceCountdown, flowState]);
+
 
   // Silence Recording Timer - 3 seconds of silence
   useEffect(() => {
@@ -242,7 +238,13 @@ export function RecordingFlow() {
             setIsSuccess(true);
             const biomarkers = extractBiomarkers(result.data.features);
             const { message, isAnomaly } = generateMessage(result.data.predictions, result.data.explanation);
-            (window as any).__analysisResult = { biomarkers, message, isAnomaly, predictions: result.data.predictions };
+            (window as any).__analysisResult = {
+              biomarkers,
+              message,
+              isAnomaly,
+              predictions: result.data.predictions,
+              quality: result.data.quality
+            };
           } else {
             setIsSuccess(false);
             setAnalysisError(result.error?.message || "Analysis failed");
@@ -260,13 +262,16 @@ export function RecordingFlow() {
   }, [flowState, audioBlob, currentPrompt, isDemoMode]);
 
   const handleStart = async () => {
-    setCountdown(3);
+    setSilenceCountdown(3);
     setRecordingTime(0);
-    setActiveWordIndex(0);
 
     if (isDemoMode) {
-      // Demo mode: skip microphone access, go straight to flow
+      // Demo mode: request microphone for live audio visualization, but won't record
+      const ok = await startAudioCapture();
       setFlowState("INITIAL_DELAY");
+      if (!ok) {
+        console.warn("Demo mode: microphone access denied, proceeding without live visualization");
+      }
     } else {
       // Normal mode: request microphone access
       const ok = await startAudioCapture();
@@ -277,7 +282,6 @@ export function RecordingFlow() {
         setFlowState("INITIAL_DELAY");
       }
     }
-    setFlowState("COUNTDOWN");
   };
 
   const handleStopRecording = async () => {
@@ -295,16 +299,29 @@ export function RecordingFlow() {
   const finishRecording = () => {
     if (isSuccess) {
       const analysisResult = (window as any).__analysisResult;
-      let pitch, shimmer, jitter, message, isAnomaly, spectralCentroid, harmonicRatio;
+      let pitch, shimmer, jitter, message, isAnomaly, spectralCentroid, harmonicRatio, snr, voicedDuration;
       if (analysisResult) {
-        pitch = analysisResult.biomarkers.pitch; shimmer = analysisResult.biomarkers.shimmer; jitter = analysisResult.biomarkers.jitter;
-        spectralCentroid = analysisResult.biomarkers.spectralCentroid; harmonicRatio = analysisResult.biomarkers.harmonicRatio;
-        message = analysisResult.message; isAnomaly = analysisResult.isAnomaly;
+        pitch = analysisResult.biomarkers.pitch;
+        shimmer = analysisResult.biomarkers.shimmer;
+        jitter = analysisResult.biomarkers.jitter;
+        spectralCentroid = analysisResult.biomarkers.spectralCentroid;
+        harmonicRatio = analysisResult.biomarkers.harmonicRatio;
+        message = analysisResult.message;
+        isAnomaly = analysisResult.isAnomaly;
+
+        // Extract quality metrics if available
+        snr = analysisResult.quality?.snr_db;
+        voicedDuration = analysisResult.quality?.voiced_duration_sec;
+
         delete (window as any).__analysisResult;
       } else {
-        pitch = Math.round(200 + Math.random() * 20); shimmer = Number((3 + Math.random() * 1.5).toFixed(1)); jitter = Number((1 + Math.random() * 1).toFixed(1));
-        spectralCentroid = Math.round(1500 + Math.random() * 500); harmonicRatio = Number((15 + Math.random() * 8).toFixed(1));
-        message = "Your voice exhibits slight jitter today, but pitch is stable. Stay hydrated!"; isAnomaly = false;
+        pitch = Math.round(200 + Math.random() * 20);
+        shimmer = Number((3 + Math.random() * 1.5).toFixed(1));
+        jitter = Number((1 + Math.random() * 1).toFixed(1));
+        spectralCentroid = Math.round(1500 + Math.random() * 500);
+        harmonicRatio = Number((15 + Math.random() * 8).toFixed(1));
+        message = "Your voice exhibits slight jitter today, but pitch is stable. Stay hydrated!";
+        isAnomaly = false;
       }
 
       // Store display data
@@ -316,6 +333,8 @@ export function RecordingFlow() {
         harmonicRatio,
         message,
         isAnomaly,
+        snr,
+        voicedDuration,
       });
 
       const newEntry = {
@@ -430,9 +449,9 @@ export function RecordingFlow() {
             </motion.div>
           )}
 
-          {flowState === "COUNTDOWN" && (
+          {flowState === "SILENCE_COUNTDOWN" && (
             <motion.div
-              key="countdown"
+              key="silence-countdown"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9 }}
               className="flex flex-col items-center text-center space-y-6 w-full max-w-md mx-auto"
             >
@@ -444,12 +463,12 @@ export function RecordingFlow() {
                 />
                 <div className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-pulse absolute top-2 right-2" />
                 <div className="text-[100px] font-black text-purple-600 drop-shadow-[0_0_30px_rgba(139,92,246,0.3)] tabular-nums leading-none">
-                  {countdown}
+                  {silenceCountdown}
                 </div>
               </div>
               <div className="rounded-2xl border border-purple-200/50 p-6 w-full shadow-sm backdrop-blur-md" style={{ background: "rgba(255,255,255,0.7)" }}>
-                <p className="text-purple-700 text-lg font-medium">Get ready to speak...</p>
-                <p className="text-purple-500/70 text-sm mt-1">Recording has started — your prompt will appear shortly</p>
+                <p className="text-purple-700 text-lg font-medium">Preparing to record silence...</p>
+                <p className="text-purple-500/70 text-sm mt-1">Stay quiet for calibration</p>
               </div>
             </motion.div>
           )}
@@ -586,27 +605,55 @@ export function RecordingFlow() {
               {/* Biomarkers Grid */}
               <div className="grid grid-cols-2 gap-4 w-full">
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
-                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Pitch</div>
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Pitch (F0)</div>
                   <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.pitch} Hz</div>
+                  <div className="text-xs text-neutral-500 mt-1">Fundamental frequency</div>
                 </div>
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
                   <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Jitter</div>
                   <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.jitter}%</div>
+                  <div className="text-xs text-neutral-500 mt-1">Pitch variation</div>
                 </div>
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
                   <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Shimmer</div>
                   <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.shimmer}%</div>
+                  <div className="text-xs text-neutral-500 mt-1">Amplitude variation</div>
                 </div>
                 <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
                   <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">HNR</div>
                   <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.harmonicRatio} dB</div>
+                  <div className="text-xs text-neutral-500 mt-1">Voice quality</div>
                 </div>
               </div>
 
-              {/* Spectral Centroid */}
-              <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6 w-full">
-                <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Spectral Centroid</div>
-                <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.spectralCentroid} Hz</div>
+              {/* Additional Metrics */}
+              <div className="grid grid-cols-1 gap-4 w-full">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                  <div className="text-neutral-400 text-xs uppercase tracking-wider mb-2">Spectral Centroid</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{displayData.spectralCentroid} Hz</div>
+                  <div className="text-xs text-neutral-500 mt-1">Brightness of sound</div>
+                </div>
+
+                {/* Quality Metrics */}
+                {(displayData.snr || displayData.voicedDuration) && (
+                  <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-4 sm:p-6">
+                    <div className="text-neutral-400 text-xs uppercase tracking-wider mb-3">Recording Quality</div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {displayData.snr && (
+                        <div>
+                          <div className="text-sm text-neutral-500">SNR</div>
+                          <div className="text-xl font-bold text-emerald-400">{displayData.snr.toFixed(1)} dB</div>
+                        </div>
+                      )}
+                      {displayData.voicedDuration && (
+                        <div>
+                          <div className="text-sm text-neutral-500">Voiced</div>
+                          <div className="text-xl font-bold text-emerald-400">{displayData.voicedDuration.toFixed(1)}s</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Anomaly Indicator */}

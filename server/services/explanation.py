@@ -89,6 +89,10 @@ def _call_openai(prompt: str) -> str:
         raise ValueError("OpenAI client not initialized")
 
     try:
+        # OpenAI requires the word 'json' in the prompt when using json_object response format
+        if "json" not in prompt.lower():
+            prompt = f"{prompt}\n\nPlease respond with valid JSON."
+
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],

@@ -40,11 +40,9 @@ def extract_features(wav_path: str, task_type: str) -> dict:
     features_list = extract_features_from_audios([audio])
     raw_features = features_list[0] if features_list else {}
 
-    # Remove unwanted torchaudio features
-    EXCLUDED_FEATURES = ['mel_filter_bank', 'mel_spectrogram', 'mfcc', 'pitch', 'spectrogram']
+    # Remove unwanted torchaudio features completely, but keep torchaudio_squim and opensmile
     if 'torchaudio' in raw_features:
-        for feature_name in EXCLUDED_FEATURES:
-            raw_features['torchaudio'].pop(feature_name, None)
+        del raw_features['torchaudio']
 
     # Flatten and serialize the B2AI features for JSON response
     flattened = _flatten_b2ai_features(raw_features)

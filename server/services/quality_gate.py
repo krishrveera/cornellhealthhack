@@ -73,10 +73,21 @@ def gate1_check_silence_region(audio: np.ndarray, sr: int, config: PipelineConfi
     if len(signal_region) == 0:
         return False, 0
 
-    silence_rms = np.sqrt(np.mean(silence_region ** 2)) + 1e-10
-    signal_rms = np.sqrt(np.mean(signal_region ** 2)) + 1e-10
+    silence_rms = np.sqrt(np.mean(silence_region ** 2))
+    signal_rms = np.sqrt(np.mean(signal_region ** 2))
+
+    # Check for completely silent audio (likely decode error)
+    if signal_rms < 1e-6:
+        return False, 0
+
+    silence_rms = max(silence_rms, 1e-10)
+    signal_rms = max(signal_rms, 1e-10)
 
     ratio_db = 20 * np.log10(signal_rms / silence_rms)
+
+    # Cap unrealistic values
+    ratio_db = min(ratio_db, 100.0)
+
     has_silence = ratio_db > 10
 
     return has_silence, silence_samples
@@ -87,10 +98,20 @@ def gate2_check_snr(audio: np.ndarray, sr: int, silence_end_sample: int, config:
     noise_region = audio[:silence_end_sample]
     signal_region = audio[silence_end_sample:]
 
-    noise_power = np.mean(noise_region ** 2) + 1e-20
-    signal_power = np.mean(signal_region ** 2) + 1e-20
+    noise_power = np.mean(noise_region ** 2)
+    signal_power = np.mean(signal_region ** 2)
+
+    # Check for silent audio (likely decode error)
+    if signal_power < 1e-12:
+        return "reject", 0.0
+
+    noise_power = max(noise_power, 1e-20)
+    signal_power = max(signal_power, 1e-20)
 
     snr_db = 10 * np.log10(signal_power / noise_power)
+
+    # Cap unrealistic values
+    snr_db = min(snr_db, 100.0)
 
     if snr_db >= config.snr_ideal:
         verdict = "ideal"
@@ -190,6 +211,38 @@ def run_quality_gate(audio_path: str, device_id: str, task_type: str, silence_se
 
     # Load audio
     audio, sr = librosa.load(audio_path, sr=None, mono=True)
+
+    # Check for completely silent/corrupted audio
+    audio_rms = np.sqrt(np.mean(audio ** 2))
+    if audio_rms < 1e-6:
+        return {
+            "passed": False,
+            "failed_checks": [{
+                "check": "audio_decode",
+                "passed": False,
+                "value": 0.0,
+                "threshold": 0.001,
+                "unit": "RMS",
+                "message": "Audio file appears to be silent or corrupted. This may be due to a recording or encoding issue. Please try recording again."
+            }],
+            "passed_checks": [],
+            "warnings": [],
+            "summary": {
+                "gate_passed": False,
+                "snr_db": 0.0,
+                "snr_verdict": "reject",
+                "clipping_fraction": 0.0,
+                "clipping_passed": True,
+                "voiced_duration_sec": 0.0,
+                "voice_detected": False,
+                "agc_detected": False,
+                "noise_reduction_applied": False,
+                "warnings": []
+            },
+            "_silence_end_sample": 0,
+            "_sr": sr,
+            "_snr_verdict": "reject",
+        }
 
     all_checks = []
 

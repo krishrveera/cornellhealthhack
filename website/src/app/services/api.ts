@@ -97,14 +97,14 @@ export async function analyzeAudio(
   audioBlob: Blob,
   options: {
     deviceId?: string;
-    taskType?: 'sustained_vowel' | 'free_speech' | 'reading_passage' | 'cough';
+    taskType?: 'prolonged_vowel' | 'max_phonation_time' | 'glides' | 'harvard_sentences' | 'loudness';
     silenceDuration?: number;
   } = {}
 ): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'recording.webm');
   formData.append('device_id', options.deviceId || 'web_app');
-  formData.append('task_type', options.taskType || 'reading_passage');
+  formData.append('task_type', options.taskType || 'prolonged_vowel');
   formData.append('silence_duration_sec', String(options.silenceDuration || 0.5));
 
   try {
@@ -160,14 +160,14 @@ export async function validateAudio(
   audioBlob: Blob,
   options: {
     deviceId?: string;
-    taskType?: string;
+    taskType?: 'prolonged_vowel' | 'max_phonation_time' | 'glides' | 'harvard_sentences' | 'loudness';
     silenceDuration?: number;
   } = {}
 ): Promise<AnalysisResult> {
   const formData = new FormData();
   formData.append('audio', audioBlob, 'recording.webm');
   formData.append('device_id', options.deviceId || 'web_app');
-  formData.append('task_type', options.taskType || 'reading_passage');
+  formData.append('task_type', options.taskType || 'prolonged_vowel');
   formData.append('silence_duration_sec', String(options.silenceDuration || 0.5));
 
   try {
@@ -259,7 +259,7 @@ export async function runDemoAnalysis(): Promise<AnalysisResult> {
     // Run the analysis with the sample file
     return await analyzeAudio(audioBlob, {
       deviceId: 'demo_mode',
-      taskType: 'sustained_vowel',
+      taskType: 'prolonged_vowel',
       silenceDuration: 0.5,
     });
   } catch (error) {
@@ -288,31 +288,74 @@ export async function runDemoAnalysis(): Promise<AnalysisResult> {
 export function extractBiomarkers(features: Record<string, number>) {
   const get = (keys: string[], fallback: number): number => {
     for (const k of keys) {
-      if (features[k] !== undefined && features[k] !== null) return features[k];
+      if (features[k] !== undefined && features[k] !== null && !isNaN(features[k])) {
+        return features[k];
+      }
     }
+    console.warn(`No valid feature found for keys: ${keys.join(', ')}, using fallback: ${fallback}`);
     return fallback;
   };
 
+  // F0 (Pitch) - OpenSMILE and Praat both provide this
   const pitch = get(
-    ['praat.f0.mean_hz', 'pitch_mean', 'f0_mean'],
+    [
+      'opensmile.F0semitoneFrom27.5Hz_sma3nz_amean',  // OpenSMILE F0 mean
+      'praat.pitch.f0_mean_hz',                        // Praat F0 mean
+      'praat.f0.mean_hz',
+      'pitch_mean',
+      'f0_mean'
+    ],
     210
   );
+
+  // Jitter - Local jitter percentage
   const jitter = get(
-    ['praat.jitter.local_percent', 'praat.jitter.local.mean', 'jitter_local'],
+    [
+      'praat.jitter.local_percent',
+      'praat.jitter.rap_percent',
+      'jitter_local'
+    ],
     1.2
   );
+
+  // Shimmer - Local shimmer percentage
   const shimmer = get(
-    ['praat.shimmer.local_percent', 'praat.shimmer.local.mean', 'shimmer_local'],
+    [
+      'praat.shimmer.local_percent',
+      'praat.shimmer.apq3_percent',
+      'shimmer_local'
+    ],
     3.4
   );
+
+  // HNR (Harmonics-to-Noise Ratio)
   const hnr = get(
-    ['praat.hnr.mean_db', 'praat.harmonicity.mean', 'hnr_mean'],
+    [
+      'praat.hnr.mean_db',
+      'praat.harmonicity.mean',
+      'hnr_mean'
+    ],
     18.5
   );
+
+  // Spectral Centroid
   const spectral = get(
-    ['spectral_centroid_mean', 'praat.spectral_centroid.mean'],
+    [
+      'opensmile.spectralFlux_sma3_amean',
+      'spectral_centroid_mean',
+      'praat.spectral_centroid.mean'
+    ],
     1500
   );
+
+  // Log what we found for debugging
+  console.log('Extracted biomarkers:', {
+    pitch: Math.round(pitch),
+    jitter: Number(jitter.toFixed(2)),
+    shimmer: Number(shimmer.toFixed(2)),
+    harmonicRatio: Number(hnr.toFixed(1)),
+    spectralCentroid: Math.round(spectral),
+  });
 
   return {
     pitch: Math.round(pitch),

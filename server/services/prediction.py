@@ -34,14 +34,33 @@ CONDITION_CONFIGS = {
         "display_name": "Benign Lesion",
         "features": {
             # Voice quality indicators for benign lesions
-            "jitter": ["praat.jitter.local_percent", "praat.jitter.local.mean"],
-            "shimmer": ["praat.shimmer.local_percent", "praat.shimmer.local.mean"],
-            "hnr": ["praat.hnr.mean_db", "praat.harmonicity.mean"],
-            "cpp": ["praat.cpp.mean_db", "praat.cepstrum.cpp.mean"],
+            # Multiple paths to handle both SenseLab and Praat fallback extraction
+            "jitter": [
+                "praat_parselmouth.local_jitter",           # SenseLab wrapper (fraction 0-1)
+                "praat.jitter.local_percent",               # Praat fallback (percent)
+                "praat.jitter.local.mean"
+            ],
+            "shimmer": [
+                "praat_parselmouth.localDB_shimmer",        # SenseLab wrapper (dB)
+                "praat.shimmer.local_percent",              # Praat fallback (percent)
+                "praat.shimmer.local.mean"
+            ],
+            "hnr": [
+                "praat_parselmouth.mean_hnr_db",            # SenseLab wrapper
+                "praat.hnr.mean_db",                        # Praat fallback
+                "praat.harmonicity.mean"
+            ],
+            "cpp": [
+                "praat_parselmouth.cepstral_peak_prominence_mean",  # SenseLab wrapper (actual key)
+                "praat_parselmouth.mean_cpp",                       # Alternative
+                "praat.cpp.mean_db",                                # Praat fallback
+                "praat.cepstrum.cpp.mean"
+            ],
         },
         "reference_thresholds": {
             "jitter_local_percent": {"normal_max": 1.04, "source": "Teixeira et al., 2013"},
-            "shimmer_local_percent": {"normal_max": 3.81, "source": "Teixeira et al., 2013"},
+            "shimmer_local_db": {"normal_max": 0.35, "source": "Teixeira et al., 2013 (dB units)"},
+            "shimmer_local_percent": {"normal_max": 3.81, "source": "Teixeira et al., 2013 (percent units)"},
             "hnr_db": {"normal_min": 20.0, "source": "Boersma, 1993"},
             "cpp_db": {"normal_min": 8.0, "source": "Heman-Ackah et al., 2003"},
         }
@@ -94,9 +113,13 @@ def _generate_dummy_prediction(condition_id: str, feature_values: dict, config: 
         score += min(jitter_abnormal * 35, 45)
         count += 1
 
-    # Shimmer: normal < 3.81%, benign lesions cause amplitude perturbation
+    # Shimmer: normal < 0.35 dB or < 3.81%, benign lesions cause amplitude perturbation
     if shimmer > 0:
-        shimmer_abnormal = max(0, (shimmer - 3.81) / 6.0)
+        # Detect if shimmer is in dB (< 5) or percent (> 5)
+        if shimmer < 5:  # dB units
+            shimmer_abnormal = max(0, (shimmer - 0.35) / 1.0)
+        else:  # Percent units
+            shimmer_abnormal = max(0, (shimmer - 3.81) / 6.0)
         score += min(shimmer_abnormal * 30, 40)
         count += 1
 
@@ -116,12 +139,21 @@ def _generate_dummy_prediction(condition_id: str, feature_values: dict, config: 
     if count > 0:
         score = score / count
 
+    # Log the scoring breakdown
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Abnormality scoring: jitter={jitter:.2f}, shimmer={shimmer:.2f}, hnr={hnr:.2f}, cpp={cpp:.2f}")
+    logger.info(f"Raw score: {score:.2f}/100 (from {count} features)")
+
     # Add small random variation for realism
-    score += np.random.uniform(-3, 3)
+    random_variation = np.random.uniform(-3, 3)
+    score += random_variation
+    logger.info(f"Score after random variation (+{random_variation:.2f}): {score:.2f}/100")
 
     # Convert score (0-100) to probability (0.0-1.0)
     # Clamp to realistic range (5%-85% probability)
     probability = max(0.05, min(0.85, score / 100.0))
+    logger.info(f"Final probability (clamped 5-85%): {probability:.4f} = {probability*100:.1f}%")
 
     # Reset random seed
     random.seed()
@@ -133,6 +165,7 @@ def _generate_dummy_prediction(condition_id: str, feature_values: dict, config: 
 def _get_feature_value(features: dict, feature_paths: list) -> float:
     """
     Extract feature value from B2AI feature dict using multiple possible paths.
+    Handles unit conversion where needed (e.g., fraction to percent).
 
     Args:
         features: Flattened feature dictionary
@@ -143,7 +176,13 @@ def _get_feature_value(features: dict, feature_paths: list) -> float:
     """
     for path in feature_paths:
         if path in features:
-            return float(features[path])
+            value = float(features[path])
+
+            # Unit conversion: SenseLab jitter/shimmer are fractions (0-1), we need percent
+            if "local_jitter" in path and value < 10:  # If value is < 10, it's likely a fraction
+                value = value * 100  # Convert to percent
+
+            return value
     return 0.0
 
 
@@ -155,6 +194,9 @@ def predict(features: dict, task_type: str) -> List[dict]:
 
     TODO: Replace placeholder logic with actual model inference.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     conditions = TASK_CONDITIONS.get(task_type, [])
     predictions = []
 
@@ -167,6 +209,10 @@ def predict(features: dict, task_type: str) -> List[dict]:
         feature_values = {}
         for feature_name, feature_paths in config["features"].items():
             feature_values[feature_name] = _get_feature_value(features, feature_paths)
+
+        # Debug: Log what features we actually found
+        logger.info(f"Prediction features extracted: {feature_values}")
+        logger.info(f"Available feature keys (first 10): {list(features.keys())[:10]}")
 
         # DUMMY DATA GENERATOR: Generates realistic probability based on features
         # When your model is ready, replace this with:
