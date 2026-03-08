@@ -1,118 +1,471 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { useAppContext } from "../../AppContext";
 import { motion, AnimatePresence } from "motion/react";
-import { CheckCircle2, ChevronRight, Activity, ShieldCheck, HeartPulse } from "lucide-react";
+import { CheckCircle2, ChevronRight, ChevronLeft, Activity, ShieldCheck, HeartPulse } from "lucide-react";
+import { Progress } from "../ui/progress";
+import { Checkbox } from "../ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
+import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+
+// ── Option lists ──────────────────────────────────────────────
+
+const DIAGNOSTIC_GROUPS = [
+  "Voice Disorder",
+  "Neurological/Neurodegenerative Disorder",
+  "Mood or Psychiatric Disorder",
+  "Respiratory Disorder",
+  "Multiple Disorders",
+  "None (Control Group)",
+] as const;
+
+const VOICE_DISORDERS = [
+  "Unilateral Vocal Fold Paralysis",
+  "Laryngeal Dystonia",
+  "Muscle Tension Dysphonia (MTD)",
+  "Benign Lesions",
+  "Laryngitis",
+  "Laryngeal Cancer",
+  "Glottic Insufficiency / Presbyphonia",
+  "None of the above",
+] as const;
+
+const NEURO_DISORDERS = [
+  "Alzheimer's / Dementia / MCI",
+  "ALS",
+  "Parkinson's Disease",
+  "None of the above",
+] as const;
+
+const MOOD_DISORDERS = [
+  "PTSD",
+  "Depression / MDD",
+  "Bipolar Disorder",
+  "ADHD",
+  "Anxiety Disorder",
+  "None of the above",
+] as const;
+
+const RESPIRATORY_DISORDERS = [
+  "COPD and Asthma",
+  "Airway Stenosis",
+  "Unexplained Chronic Cough",
+  "None of the above",
+] as const;
+
+const GENDER_OPTIONS = ["Female", "Male", "Prefer not to answer"] as const;
+const ORIENTATION_OPTIONS = ["Heterosexual", "Bisexual", "Homosexual", "Prefer not to answer", "Other"] as const;
+const RACE_OPTIONS = [
+  "American Indian or Alaska Native",
+  "Asian",
+  "Black or African American",
+  "Native Hawaiian or Pacific Islander",
+  "White",
+  "Canadian Indigenous or Aboriginal",
+  "Other",
+  "Prefer not to answer",
+] as const;
+const ETHNICITY_OPTIONS = ["Not Hispanic or Latino", "Hispanic or Latino", "Prefer not to answer"] as const;
+const LANGUAGE_OPTIONS = ["English", "Spanish", "Other"] as const;
+const AGE_GROUPS = ["0-9", "10-19", "20-29", "30-39", "40-49", "50-59", "60-69", "70-79", "80-89", "90 and above"] as const;
+
+// ── Step identifiers ──────────────────────────────────────────
+
+type StepId = "consent" | "diagnostic" | "voice" | "neuro" | "mood" | "respiratory" | "demographics";
+
+// ── Helpers ───────────────────────────────────────────────────
+
+function toggleInArray(arr: string[], value: string): string[] {
+  return arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
+}
+
+/** For disorder groups: "None of the above" is mutually exclusive with other options */
+function toggleDisorderArray(arr: string[], value: string, noneLabel = "None of the above"): string[] {
+  if (value === noneLabel) {
+    return arr.includes(value) ? [] : [value];
+  }
+  const withoutNone = arr.filter(v => v !== noneLabel);
+  const next = withoutNone.includes(value)
+    ? withoutNone.filter(v => v !== value)
+    : [...withoutNone, value];
+  return next;
+}
+
+// ── Reusable sub-components ───────────────────────────────────
+
+function CheckboxGroup({
+  label,
+  options,
+  selected,
+  onChange,
+  toggleFn = toggleInArray,
+}: {
+  label: string;
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  toggleFn?: (arr: string[], value: string) => string[];
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-neutral-300">{label}</p>
+      <div className="space-y-2">
+        {options.map(opt => (
+          <label key={opt} className="flex items-center gap-3 p-3 bg-neutral-900 rounded-xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <Checkbox
+              checked={selected.includes(opt)}
+              onCheckedChange={() => onChange(toggleFn(selected, opt))}
+              className="border-neutral-600 data-[state=checked]:bg-indigo-500 data-[state=checked]:border-indigo-500"
+            />
+            <span className="text-sm text-neutral-200">{opt}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RadioField({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-neutral-300">{label}</p>
+      <RadioGroup value={value} onValueChange={onChange} className="space-y-2">
+        {options.map(opt => (
+          <label key={opt} className="flex items-center gap-3 p-3 bg-neutral-900 rounded-xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
+            <RadioGroupItem value={opt} className="border-neutral-600 text-indigo-500" />
+            <Label className="text-sm text-neutral-200 cursor-pointer">{opt}</Label>
+          </label>
+        ))}
+      </RadioGroup>
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────
 
 export function Onboarding() {
-  const { userData, setUserData } = useAppContext();
+  const { userData, setUserData, surveyAnswers, setSurveyAnswer } = useAppContext();
   const navigate = useNavigate();
-  const [step, setStep] = useState(1);
   const [agreed, setAgreed] = useState(false);
-  const [form, setForm] = useState({ age: "", gender: "", smoking: "No", voiceDisorders: "None" });
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+
+  // Build the dynamic step list based on diagnostic selections
+  const steps = useMemo<StepId[]>(() => {
+    const s: StepId[] = ["consent", "diagnostic"];
+    const dg = surveyAnswers.diagnosticGroups;
+    if (dg.includes("Voice Disorder")) s.push("voice");
+    if (dg.includes("Neurological/Neurodegenerative Disorder")) s.push("neuro");
+    if (dg.includes("Mood or Psychiatric Disorder")) s.push("mood");
+    if (dg.includes("Respiratory Disorder")) s.push("respiratory");
+    s.push("demographics");
+    return s;
+  }, [surveyAnswers.diagnosticGroups]);
+
+  const currentStep = steps[currentStepIdx] ?? "consent";
+  const totalSteps = steps.length;
+  const progressPercent = ((currentStepIdx + 1) / totalSteps) * 100;
+
+  // Clamp index if steps shrink (e.g. user goes back and deselects a group)
+  if (currentStepIdx >= steps.length) {
+    setCurrentStepIdx(steps.length - 1);
+  }
+
+  const canAdvance = (): boolean => {
+    switch (currentStep) {
+      case "consent":
+        return agreed;
+      case "diagnostic":
+        return surveyAnswers.diagnosticGroups.length > 0;
+      case "voice":
+        return surveyAnswers.voiceDisorders.length > 0;
+      case "neuro":
+        return surveyAnswers.neurologicalDisorders.length > 0;
+      case "mood":
+        return surveyAnswers.moodDisorders.length > 0;
+      case "respiratory":
+        return surveyAnswers.respiratoryDisorders.length > 0;
+      case "demographics":
+        return !!(
+          surveyAnswers.genderIdentity &&
+          surveyAnswers.sexualOrientation &&
+          surveyAnswers.race.length > 0 &&
+          surveyAnswers.ethnicity &&
+          surveyAnswers.primaryLanguage &&
+          surveyAnswers.ageGroup
+        );
+      default:
+        return false;
+    }
+  };
 
   const handleNext = () => {
-    if (step === 1 && !agreed) return;
-    if (step === 1) setStep(2);
-    else {
-      setUserData({ ...userData, optedIn: true, demographics: form, hasRecordedToday: false });
+    if (!canAdvance()) return;
+    if (currentStepIdx < totalSteps - 1) {
+      setCurrentStepIdx(currentStepIdx + 1);
+    } else {
+      // Final step — complete onboarding (opt in)
+      setUserData({ ...userData, optedIn: true, onboardingComplete: true, demographics: surveyAnswers, hasRecordedToday: false });
       navigate("/");
     }
   };
 
+  const handleBack = () => {
+    if (currentStepIdx > 0) setCurrentStepIdx(currentStepIdx - 1);
+  };
+
+  // When diagnostic groups change, clear sub-answers for deselected groups
+  const handleDiagnosticChange = (next: string[]) => {
+    setSurveyAnswer("diagnosticGroups", next);
+    if (!next.includes("Voice Disorder")) setSurveyAnswer("voiceDisorders", []);
+    if (!next.includes("Neurological/Neurodegenerative Disorder")) setSurveyAnswer("neurologicalDisorders", []);
+    if (!next.includes("Mood or Psychiatric Disorder")) setSurveyAnswer("moodDisorders", []);
+    if (!next.includes("Respiratory Disorder")) setSurveyAnswer("respiratoryDisorders", []);
+  };
+
+  // ── Step renderers ────────────────────────────────────────
+
+  const renderConsent = () => (
+    <div className="flex-1 space-y-8 mt-12">
+      <div className="flex justify-center">
+        <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center">
+          <Activity className="w-10 h-10 text-indigo-400" />
+        </div>
+      </div>
+      <h1 className="text-3xl font-bold tracking-tight text-center">Bridge2AI Study</h1>
+      <p className="text-neutral-400 text-center leading-relaxed">
+        We're mapping voice biomarkers to predict health changes. Your daily recordings help build the future of diagnostic medicine with unprecedented accuracy.
+      </p>
+      <div className="space-y-4 bg-neutral-900/50 p-4 rounded-2xl border border-neutral-800">
+        <div className="flex gap-3 items-start">
+          <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-neutral-300">Your voice data is encrypted and completely anonymized.</p>
+        </div>
+        <div className="flex gap-3 items-start">
+          <HeartPulse className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-neutral-300">Discover early signs of vocal strain or fatigue before it happens.</p>
+        </div>
+      </div>
+      <label className="flex gap-3 items-center p-4 bg-neutral-900 rounded-2xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
+        <div className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${agreed ? "bg-indigo-500 border-indigo-500 text-white" : "border-neutral-600 text-transparent"}`}>
+          <CheckCircle2 className="w-4 h-4" />
+        </div>
+        <span className="text-sm text-neutral-200">I agree to contribute to the Bridge2AI voice study.</span>
+        <input type="checkbox" className="hidden" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          setUserData(prev => ({ ...prev, optedIn: false, onboardingComplete: true }));
+          navigate("/");
+        }}
+        className="w-full py-3 text-sm text-neutral-400 hover:text-rose-400 transition-colors underline underline-offset-2"
+      >
+        I do not wish to participate — Opt out of Bridge2AI study
+      </button>
+    </div>
+  );
+
+  const renderDiagnostic = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Diagnostic Group</h1>
+        <p className="text-neutral-400 mt-2">Do you have any diagnosed conditions? Select all that apply.</p>
+      </div>
+      <CheckboxGroup
+        label=""
+        options={DIAGNOSTIC_GROUPS}
+        selected={surveyAnswers.diagnosticGroups}
+        onChange={handleDiagnosticChange}
+      />
+    </div>
+  );
+
+  const renderVoice = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Voice Disorder</h1>
+        <p className="text-neutral-400 mt-2">Which voice condition(s) apply to you?</p>
+      </div>
+      <CheckboxGroup
+        label=""
+        options={VOICE_DISORDERS}
+        selected={surveyAnswers.voiceDisorders}
+        onChange={(v) => setSurveyAnswer("voiceDisorders", v)}
+        toggleFn={(arr, val) => toggleDisorderArray(arr, val)}
+      />
+    </div>
+  );
+
+  const renderNeuro = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Neurological Disorder</h1>
+        <p className="text-neutral-400 mt-2">Which neurological condition(s) apply to you?</p>
+      </div>
+      <CheckboxGroup
+        label=""
+        options={NEURO_DISORDERS}
+        selected={surveyAnswers.neurologicalDisorders}
+        onChange={(v) => setSurveyAnswer("neurologicalDisorders", v)}
+        toggleFn={(arr, val) => toggleDisorderArray(arr, val)}
+      />
+    </div>
+  );
+
+  const renderMood = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Mood & Psychiatric</h1>
+        <p className="text-neutral-400 mt-2">Which mood or psychiatric condition(s) apply to you?</p>
+      </div>
+      <CheckboxGroup
+        label=""
+        options={MOOD_DISORDERS}
+        selected={surveyAnswers.moodDisorders}
+        onChange={(v) => setSurveyAnswer("moodDisorders", v)}
+        toggleFn={(arr, val) => toggleDisorderArray(arr, val)}
+      />
+    </div>
+  );
+
+  const renderRespiratory = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Respiratory Disorder</h1>
+        <p className="text-neutral-400 mt-2">Which respiratory condition(s) apply to you?</p>
+      </div>
+      <CheckboxGroup
+        label=""
+        options={RESPIRATORY_DISORDERS}
+        selected={surveyAnswers.respiratoryDisorders}
+        onChange={(v) => setSurveyAnswer("respiratoryDisorders", v)}
+        toggleFn={(arr, val) => toggleDisorderArray(arr, val)}
+      />
+    </div>
+  );
+
+  const renderDemographics = () => (
+    <div className="flex-1 space-y-6 mt-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Demographics</h1>
+        <p className="text-neutral-400 mt-2">Help us contextualize your biomarkers with a few baseline details.</p>
+      </div>
+      <div className="space-y-6">
+        <RadioField
+          label="Gender Identity"
+          options={GENDER_OPTIONS}
+          value={surveyAnswers.genderIdentity}
+          onChange={(v) => setSurveyAnswer("genderIdentity", v)}
+        />
+        <RadioField
+          label="Sexual Orientation"
+          options={ORIENTATION_OPTIONS}
+          value={surveyAnswers.sexualOrientation}
+          onChange={(v) => setSurveyAnswer("sexualOrientation", v)}
+        />
+        <CheckboxGroup
+          label="Race (select all that apply)"
+          options={RACE_OPTIONS}
+          selected={surveyAnswers.race}
+          onChange={(v) => setSurveyAnswer("race", v)}
+        />
+        <RadioField
+          label="Ethnicity"
+          options={ETHNICITY_OPTIONS}
+          value={surveyAnswers.ethnicity}
+          onChange={(v) => setSurveyAnswer("ethnicity", v)}
+        />
+        <RadioField
+          label="Primary Language"
+          options={LANGUAGE_OPTIONS}
+          value={surveyAnswers.primaryLanguage}
+          onChange={(v) => setSurveyAnswer("primaryLanguage", v)}
+        />
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-neutral-300">Age Group</p>
+          <Select value={surveyAnswers.ageGroup} onValueChange={(v) => setSurveyAnswer("ageGroup", v)}>
+            <SelectTrigger className="w-full bg-neutral-900 border-neutral-800 text-neutral-200">
+              <SelectValue placeholder="Select age group..." />
+            </SelectTrigger>
+            <SelectContent>
+              {AGE_GROUPS.map(g => (
+                <SelectItem key={g} value={g}>{g}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+
+  const stepContent: Record<StepId, () => React.ReactNode> = {
+    consent: renderConsent,
+    diagnostic: renderDiagnostic,
+    voice: renderVoice,
+    neuro: renderNeuro,
+    mood: renderMood,
+    respiratory: renderRespiratory,
+    demographics: renderDemographics,
+  };
+
+  const isLastStep = currentStepIdx === totalSteps - 1;
+
   return (
     <div className="flex flex-col h-full bg-neutral-950 text-neutral-50 p-6 overflow-y-auto relative z-10">
+      {/* Progress bar — hidden on consent step */}
+      {currentStep !== "consent" && (
+        <div className="mb-4 space-y-2">
+          <div className="flex justify-between text-xs text-neutral-500">
+            <span>Step {currentStepIdx + 1} of {totalSteps}</span>
+            <span>{Math.round(progressPercent)}%</span>
+          </div>
+          <Progress value={progressPercent} className="bg-neutral-800 h-2" />
+        </div>
+      )}
+
       <AnimatePresence mode="wait">
-        {step === 1 ? (
-          <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col flex-1">
-            <div className="flex-1 space-y-8 mt-12">
-              <div className="flex justify-center">
-                <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center">
-                  <Activity className="w-10 h-10 text-indigo-400" />
-                </div>
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-center">Bridge2AI Study</h1>
-              <p className="text-neutral-400 text-center leading-relaxed">
-                We're mapping voice biomarkers to predict health changes. Your daily recordings help build the future of diagnostic medicine with unprecedented accuracy.
-              </p>
-              
-              <div className="space-y-4 bg-neutral-900/50 p-4 rounded-2xl border border-neutral-800">
-                <div className="flex gap-3 items-start">
-                  <ShieldCheck className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-                  <p className="text-sm text-neutral-300">Your voice data is encrypted and completely anonymized.</p>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <HeartPulse className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                  <p className="text-sm text-neutral-300">Discover early signs of vocal strain or fatigue before it happens.</p>
-                </div>
-              </div>
+        <motion.div
+          key={currentStep}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="flex flex-col flex-1"
+        >
+          {stepContent[currentStep]()}
 
-              <label className="flex gap-3 items-center p-4 bg-neutral-900 rounded-2xl border border-neutral-800 cursor-pointer hover:border-indigo-500/50 transition-colors">
-                <div className={`w-6 h-6 rounded-md flex items-center justify-center border transition-colors ${agreed ? "bg-indigo-500 border-indigo-500 text-white" : "border-neutral-600 text-transparent"}`}>
-                  <CheckCircle2 className="w-4 h-4" />
-                </div>
-                <span className="text-sm text-neutral-200">I agree to contribute to the Bridge2AI voice study.</span>
-                <input type="checkbox" className="hidden" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-              </label>
-            </div>
-
+          <div className="flex gap-3 mt-8">
+            {currentStepIdx > 0 && (
+              <button
+                onClick={handleBack}
+                className="flex-1 py-4 bg-neutral-800 text-neutral-200 rounded-2xl font-semibold hover:bg-neutral-700 transition-colors flex justify-center items-center gap-2"
+              >
+                <ChevronLeft className="w-5 h-5" /> Back
+              </button>
+            )}
             <button
               onClick={handleNext}
-              disabled={!agreed}
-              className="w-full mt-8 py-4 bg-indigo-500 text-white rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2"
+              disabled={!canAdvance()}
+              className="flex-1 py-4 bg-indigo-500 text-white rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2"
             >
-              Continue <ChevronRight className="w-5 h-5" />
+              {isLastStep ? (
+                <>Complete Calibration <CheckCircle2 className="w-5 h-5" /></>
+              ) : (
+                <>Continue <ChevronRight className="w-5 h-5" /></>
+              )}
             </button>
-          </motion.div>
-        ) : (
-          <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex flex-col flex-1">
-            <div className="flex-1 space-y-6 mt-8">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">About You</h1>
-                <p className="text-neutral-400 mt-2">To contextualize your biomarkers, we need a few baseline details.</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-300">Age</label>
-                  <input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. 28" />
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-300">Biological Sex</label>
-                  <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors appearance-none">
-                    <option value="" disabled>Select...</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-300">Smoking History</label>
-                  <select value={form.smoking} onChange={(e) => setForm({ ...form, smoking: e.target.value })} className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors appearance-none">
-                    <option value="No">Never</option>
-                    <option value="Past">Former</option>
-                    <option value="Current">Current</option>
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-neutral-300">History of Voice Disorders</label>
-                  <input type="text" value={form.voiceDisorders} onChange={(e) => setForm({ ...form, voiceDisorders: e.target.value })} className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors" placeholder="e.g. Nodules, Polyps (or None)" />
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleNext}
-              disabled={!form.age || !form.gender}
-              className="w-full mt-8 py-4 bg-indigo-500 text-white rounded-2xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-600 transition-colors flex justify-center items-center gap-2"
-            >
-              Complete Calibration <CheckCircle2 className="w-5 h-5" />
-            </button>
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
       </AnimatePresence>
     </div>
   );

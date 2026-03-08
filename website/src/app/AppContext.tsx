@@ -1,9 +1,39 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+
+export type SurveyAnswers = {
+  diagnosticGroups: string[];
+  voiceDisorders: string[];
+  neurologicalDisorders: string[];
+  moodDisorders: string[];
+  respiratoryDisorders: string[];
+  genderIdentity: string;
+  sexualOrientation: string;
+  race: string[];
+  ethnicity: string;
+  primaryLanguage: string;
+  ageGroup: string;
+};
+
+const defaultSurveyAnswers: SurveyAnswers = {
+  diagnosticGroups: [],
+  voiceDisorders: [],
+  neurologicalDisorders: [],
+  moodDisorders: [],
+  respiratoryDisorders: [],
+  genderIdentity: '',
+  sexualOrientation: '',
+  race: [],
+  ethnicity: '',
+  primaryLanguage: '',
+  ageGroup: '',
+};
 
 type UserData = {
   optedIn: boolean;
+  onboardingComplete: boolean;
   demographics: any;
   hasRecordedToday: boolean;
+  streak: number;
   history: Array<{
     date: string;
     pitch: number;
@@ -17,8 +47,10 @@ type UserData = {
 
 const defaultData: UserData = {
   optedIn: false,
+  onboardingComplete: false,
   demographics: null,
   hasRecordedToday: false,
+  streak: 5,
   history: [
     { date: 'Mon', pitch: 210, shimmer: 3.2, jitter: 1.1, message: "Your voice sounds steady today. Great job!", isAnomaly: false },
     { date: 'Tue', pitch: 215, shimmer: 3.5, jitter: 1.2, message: "Slight variation in shimmer, but within normal range.", isAnomaly: false },
@@ -33,13 +65,25 @@ const defaultData: UserData = {
 type AppContextType = {
   userData: UserData;
   setUserData: React.Dispatch<React.SetStateAction<UserData>>;
+  surveyAnswers: SurveyAnswers;
+  setSurveyAnswer: <K extends keyof SurveyAnswers>(key: K, value: SurveyAnswers[K]) => void;
 };
 
 const AppContext = createContext<AppContextType | null>(null);
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<UserData>(defaultData);
-  return <AppContext.Provider value={{ userData, setUserData }}>{children}</AppContext.Provider>;
+  const [surveyAnswers, setSurveyAnswers] = useState<SurveyAnswers>(defaultSurveyAnswers);
+
+  const setSurveyAnswer = useCallback(<K extends keyof SurveyAnswers>(key: K, value: SurveyAnswers[K]) => {
+    setSurveyAnswers(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  return (
+    <AppContext.Provider value={{ userData, setUserData, surveyAnswers, setSurveyAnswer }}>
+      {children}
+    </AppContext.Provider>
+  );
 };
 
 export const useAppContext = () => {

@@ -5,3 +5,4 @@ pediatric/
 venv/
 .env
 colab/
+node_modules/

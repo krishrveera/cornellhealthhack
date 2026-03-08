@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useAppContext } from "../../AppContext";
 import { motion, AnimatePresence } from "motion/react";
-import { Mic, Activity, Info, ChevronRight, X, AlertTriangle } from "lucide-react";
+import { Mic, Activity, Info, X, AlertTriangle, Flame } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 export function Home() {
@@ -12,13 +12,13 @@ export function Home() {
   const [showHealthPopup, setShowHealthPopup] = useState(false);
 
   useEffect(() => {
-    if (!userData.optedIn) {
+    if (!userData.onboardingComplete) {
       navigate("/onboarding");
     }
     if (userData.showHealthPopup) {
       setShowHealthPopup(true);
     }
-  }, [userData.optedIn, userData.showHealthPopup, navigate]);
+  }, [userData.onboardingComplete, userData.showHealthPopup, navigate]);
 
   const handleRecord = () => {
     navigate("/record");
@@ -33,7 +33,7 @@ export function Home() {
     setUserData(prev => ({ ...prev, showHealthPopup: false }));
   };
 
-  if (!userData.optedIn) return null;
+  if (!userData.onboardingComplete) return null;
 
   return (
     <div className="flex flex-col h-full bg-neutral-950 text-neutral-50 relative z-10">
@@ -42,33 +42,46 @@ export function Home() {
       <header className="px-6 py-4 flex items-center justify-between border-b border-neutral-900 z-20 bg-neutral-950">
         <div className="flex items-center gap-2">
           <Activity className="w-6 h-6 text-indigo-500" />
-          <h1 className="text-xl font-bold tracking-tight">VoiceTracker</h1>
+          <h1 className="text-xl font-bold tracking-tight">AriaPitch</h1>
         </div>
-        <button 
-          onClick={() => navigate("/onboarding")}
-          className="text-xs bg-neutral-900 px-3 py-1.5 rounded-full text-neutral-400 hover:text-white transition-colors"
-        >
-          Calibrate
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-400">
+            <Flame className="w-4 h-4" />
+            <span className="text-sm font-semibold">{userData.streak ?? 0}</span>
+          </div>
+          <button 
+            onClick={() => navigate("/onboarding")}
+            className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+              userData.optedIn 
+                ? "bg-emerald-500 text-white hover:bg-emerald-600" 
+                : "bg-rose-500 text-white hover:bg-rose-600"
+            }`}
+          >
+            Opt In/Out of Study
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}
       <main className={`flex-1 overflow-y-auto p-6 space-y-8 ${showPrompt ? "blur-sm opacity-50 pointer-events-none" : ""}`}>
         
-        {/* Feed of Messages */}
+        {/* Feed of Messages - iMessage style, newest first */}
         <section className="space-y-4">
           <h2 className="text-sm font-medium text-neutral-500 uppercase tracking-wider">Voice Insights</h2>
-          <div className="space-y-3">
-            {userData.history.map((entry, i) => (
-              <div key={i} className={`p-4 rounded-2xl ${entry.isAnomaly ? "bg-rose-500/10 border border-rose-500/20" : "bg-neutral-900 border border-neutral-800"}`}>
-                <div className="flex justify-between items-start mb-2">
+          <div className="flex flex-col gap-3 max-h-[420px] overflow-y-auto pr-1 -mr-1">
+            {[...userData.history].reverse().map((entry, i) => (
+              <div
+                key={i}
+                className={`self-start max-w-[85%] px-4 py-3 rounded-2xl rounded-tl-md ${entry.isAnomaly ? "bg-rose-500/15 border border-rose-500/25" : "bg-neutral-800/90 border border-neutral-700/80"}`}
+              >
+                <div className="flex justify-between items-start mb-1.5 gap-2">
                   <span className="text-xs font-medium text-neutral-400">{entry.date}</span>
-                  {entry.isAnomaly && <AlertTriangle className="w-4 h-4 text-rose-400" />}
+                  {entry.isAnomaly && <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />}
                 </div>
                 <p className={`text-sm leading-relaxed ${entry.isAnomaly ? "text-rose-200" : "text-neutral-200"}`}>
                   {entry.message}
                 </p>
-                <div className="mt-3 flex gap-3 text-xs text-neutral-500">
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-neutral-500">
                   <span>Pitch: {entry.pitch}Hz</span>
                   <span>Shimmer: {entry.shimmer}%</span>
                   <span>Jitter: {entry.jitter}%</span>
